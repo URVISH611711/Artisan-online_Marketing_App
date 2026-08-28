@@ -1,10 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { layout, shadows } from '../theme/spacing';
+import { rs, rf } from '../theme/responsive';
 import { MainTabParamList, HomeStackParamList, ProductsStackParamList, OrdersStackParamList, SalesStackParamList, ProfileStackParamList } from './types';
 import { FloatingMicButton } from '../components/layout/FloatingMicButton';
 
@@ -102,12 +104,22 @@ const TabIcon: React.FC<TabIconProps> = ({ name, focused, label, badge }) => (
 );
 
 export const MainTabNavigator: React.FC<{ onMicPress: () => void }> = ({ onMicPress }) => {
+  const insets = useSafeAreaInsets();
+  // Dynamic tab bar height: base + safe area bottom inset (for Android gesture nav / iPhone home bar)
+  const tabBarHeight = rs(56) + insets.bottom;
+
   return (
     <View style={{ flex: 1 }}>
       <Tab.Navigator
         screenOptions={{
           headerShown: false,
-          tabBarStyle: tabStyles.tabBar,
+          tabBarStyle: [
+            tabStyles.tabBar,
+            {
+              height: tabBarHeight,
+              paddingBottom: insets.bottom > 0 ? insets.bottom : rs(8),
+            }
+          ],
           tabBarShowLabel: false,
         }}
       >
@@ -156,10 +168,9 @@ export const MainTabNavigator: React.FC<{ onMicPress: () => void }> = ({ onMicPr
 
 const tabStyles = StyleSheet.create({
   tabBar: {
-    height: layout.bottomNavHeight + 8,
     backgroundColor: colors.surface,
     borderTopWidth: 0,
-    paddingBottom: 8,
+    // height and paddingBottom are set dynamically above
     ...shadows.bottomNav,
   },
   iconWrapper: {
@@ -179,8 +190,8 @@ const tabStyles = StyleSheet.create({
     backgroundColor: '#EBF5FF',
   },
   label: {
-    fontSize: 11,
-    marginTop: 2,
+    fontSize: rf(10),
+    marginTop: rs(2),
     color: colors.tabInactive,
   },
   labelActive: {

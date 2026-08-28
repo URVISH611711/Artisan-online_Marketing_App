@@ -9,7 +9,7 @@ export type AuthStackParamList = {
   Language: undefined;
   Onboarding: undefined;
   Login: undefined;
-  OTP: { phone: string };
+  OTP: { email: string };
   Registration: undefined;
 };
 

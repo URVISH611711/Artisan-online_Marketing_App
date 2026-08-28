@@ -4,7 +4,8 @@ export type AppLanguage = 'en' | 'hi' | 'gu';
 
 export interface User {
   id: string;
-  phone: string;
+  email: string;
+  phone?: string;
   name: string;
   role: UserRole;
   profileImage?: string;

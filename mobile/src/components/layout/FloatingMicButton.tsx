@@ -1,27 +1,47 @@
 import React from 'react';
 import { TouchableOpacity, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../theme/colors';
-import { layout, shadows } from '../../theme/spacing';
+import { shadows } from '../../theme/spacing';
+import { rs } from '../../theme/responsive';
 
 interface FloatingMicButtonProps {
   onPress: () => void;
 }
 
-export const FloatingMicButton: React.FC<FloatingMicButtonProps> = ({
-  onPress,
-}) => {
+export const FloatingMicButton: React.FC<FloatingMicButtonProps> = ({ onPress }) => {
+  const insets = useSafeAreaInsets();
+  // Compute responsive values inside the component (lazy — safe for Hermes)
+  const fabSize = rs(52);
+  const tabBarBase = rs(56);
+  const bottomOffset = tabBarBase + insets.bottom + rs(12);
+
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        { bottom: bottomOffset, right: rs(16) },
+      ]}
+      pointerEvents="box-none"
+    >
       <TouchableOpacity
         onPress={onPress}
-        activeOpacity={0.8}
-        accessibilityLabel="Voice assistant"
+        activeOpacity={0.85}
+        accessibilityLabel="Open voice assistant"
         accessibilityRole="button"
-        style={[styles.button, shadows.fab]}
+        style={[{
+          width: fabSize,
+          height: fabSize,
+          borderRadius: fabSize / 2,
+          overflow: 'hidden',
+        }, shadows.fab]}
       >
-        <View style={styles.gradient}>
-          <Ionicons name="mic" size={24} color={colors.textOnPrimary} />
+        <View style={[
+          styles.inner,
+          { width: fabSize, height: fabSize, borderRadius: fabSize / 2 },
+        ]}>
+          <Ionicons name="mic" size={rs(22)} color={colors.textOnPrimary} />
         </View>
       </TouchableOpacity>
     </View>
@@ -31,22 +51,11 @@ export const FloatingMicButton: React.FC<FloatingMicButtonProps> = ({
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    right: 16,
-    bottom: layout.bottomNavHeight + 16,
     zIndex: 100,
   },
-  button: {
-    width: layout.fabSize,
-    height: layout.fabSize,
-    borderRadius: layout.fabSize / 2,
-    overflow: 'hidden',
-  },
-  gradient: {
-    width: '100%',
-    height: '100%',
+  inner: {
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
-    borderRadius: layout.fabSize / 2,
   },
 });

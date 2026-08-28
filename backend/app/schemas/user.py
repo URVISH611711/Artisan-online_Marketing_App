@@ -6,8 +6,8 @@ from app.models.user import UserRole, AppLanguage
 
 class UserBase(BaseModel):
     name: str = Field(..., max_length=255)
-    phone: str = Field(..., max_length=20)
-    email: Optional[EmailStr] = None
+    email: EmailStr
+    phone: Optional[str] = Field(None, max_length=20)
     role: UserRole = UserRole.ARTISAN
     preferred_language: AppLanguage = AppLanguage.EN
     voice_language: AppLanguage = AppLanguage.EN

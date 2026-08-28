@@ -15,7 +15,12 @@ class Settings(BaseSettings):
     
     # AI Integration
     GEMINI_API_KEY: Optional[str] = None
+    SARVAM_API: Optional[str] = None
     
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=True)
+    # Email / SMTP
+    SMTP_USERNAME: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore")
 
 settings = Settings()

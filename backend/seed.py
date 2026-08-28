@@ -25,6 +25,7 @@ def seed_database():
         print("Seeding Users...")
         admin = User(
             id=uuid.uuid4(),
+            email="admin@artisan-ai.com",
             phone="+919999999999",
             name="System Admin",
             role=UserRole.ADMIN,
@@ -33,6 +34,7 @@ def seed_database():
         
         artisan_user = User(
             id=uuid.uuid4(),
+            email="ramesh@artisan.local",
             phone="+919876543210",
             name="Ramesh Bhai",
             role=UserRole.ARTISAN,
@@ -42,7 +44,7 @@ def seed_database():
         
         buyer_user = User(
             id=uuid.uuid4(),
-            phone="+918765432109",
+            email="priya@buyer.local",
             name="Priya Sharma",
             role=UserRole.BUYER,
             preferred_language=AppLanguage.EN,

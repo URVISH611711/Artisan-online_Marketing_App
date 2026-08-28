@@ -20,8 +20,8 @@ class AppLanguage(str, enum.Enum):
 class User(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "users"
 
-    phone: Mapped[str] = mapped_column(String(20), unique=True, index=True)
-    email: Mapped[Optional[str]] = mapped_column(String(255), unique=True, index=True, nullable=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(20), unique=True, index=True, nullable=True)
     hashed_password: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     name: Mapped[str] = mapped_column(String(255))
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.ARTISAN, index=True)

@@ -1,15 +1,17 @@
 import React from 'react';
 import {
   View,
-  SafeAreaView,
   StatusBar,
   StyleSheet,
   ScrollView,
   ViewStyle,
   RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../theme/colors';
-import { layout } from '../../theme/spacing';
+import { rp } from '../../theme/responsive';
 
 interface ScreenWrapperProps {
   children: React.ReactNode;
@@ -21,6 +23,9 @@ interface ScreenWrapperProps {
   style?: ViewStyle;
   contentStyle?: ViewStyle;
   backgroundColor?: string;
+  keyboardAvoiding?: boolean;
+  /** Extra bottom padding added to scroll content (useful when FAB is on screen) */
+  extraBottomPadding?: number;
 }
 
 export const ScreenWrapper: React.FC<ScreenWrapperProps> = ({
@@ -33,14 +38,19 @@ export const ScreenWrapper: React.FC<ScreenWrapperProps> = ({
   style,
   contentStyle,
   backgroundColor = colors.background,
+  keyboardAvoiding = false,
+  extraBottomPadding = 0,
 }) => {
-  const Wrapper = safeArea ? SafeAreaView : View;
+  const insets = useSafeAreaInsets();
+  const hPad = rp();
 
-  const content = scrollable ? (
+  const innerContent = scrollable ? (
     <ScrollView
       style={styles.scroll}
       contentContainerStyle={[
-        padded && styles.padded,
+        padded && { paddingHorizontal: hPad },
+        // Ensure content always clears the bottom safe area + nav
+        { paddingBottom: insets.bottom + extraBottomPadding + 16 },
         contentStyle,
       ]}
       showsVerticalScrollIndicator={false}
@@ -59,16 +69,46 @@ export const ScreenWrapper: React.FC<ScreenWrapperProps> = ({
       {children}
     </ScrollView>
   ) : (
-    <View style={[styles.content, padded && styles.padded, contentStyle]}>
+    <View style={[styles.content, padded && { paddingHorizontal: hPad }, contentStyle]}>
       {children}
     </View>
   );
 
+  const wrappedContent = keyboardAvoiding ? (
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      {innerContent}
+    </KeyboardAvoidingView>
+  ) : innerContent;
+
+  if (safeArea) {
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor }, style]}
+        edges={['top', 'left', 'right']}
+      >
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor={backgroundColor}
+          translucent={false}
+        />
+        {wrappedContent}
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <Wrapper style={[styles.container, { backgroundColor }, style]}>
-      <StatusBar barStyle="dark-content" backgroundColor={backgroundColor} />
-      {content}
-    </Wrapper>
+    <View style={[styles.container, { backgroundColor }, style]}>
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor={backgroundColor}
+        translucent={false}
+      />
+      {wrappedContent}
+    </View>
   );
 };
 
@@ -76,13 +116,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  flex: {
+    flex: 1,
+  },
   scroll: {
     flex: 1,
   },
   content: {
     flex: 1,
-  },
-  padded: {
-    paddingHorizontal: layout.screenPadding,
   },
 });

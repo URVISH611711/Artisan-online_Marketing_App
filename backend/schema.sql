@@ -8,8 +8,8 @@ CREATE TYPE notificationtype AS ENUM ('NEW_ORDER', 'BULK_ORDER', 'COUNTER_OFFER'
 CREATE TYPE messagerole AS ENUM ('USER', 'ASSISTANT', 'SYSTEM', 'TOOL') ;
 
 CREATE TABLE users (
-	phone VARCHAR(20) NOT NULL, 
-	email VARCHAR(255), 
+	email VARCHAR(255) NOT NULL, 
+	phone VARCHAR(20), 
 	hashed_password VARCHAR(255), 
 	name VARCHAR(255) NOT NULL, 
 	role userrole NOT NULL, 

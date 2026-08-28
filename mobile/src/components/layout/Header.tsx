@@ -1,8 +1,14 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ViewStyle,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../theme/colors';
-import { layout } from '../../theme/spacing';
+import { rp, rf, rs } from '../../theme/responsive';
 import { CountBadge } from '../ui/Badge';
 
 interface HeaderProps {
@@ -15,7 +21,6 @@ interface HeaderProps {
   rightText?: string;
   greeting?: string;
   greetingName?: string;
-  avatar?: string;
   style?: ViewStyle;
   transparent?: boolean;
 }
@@ -33,27 +38,48 @@ export const Header: React.FC<HeaderProps> = ({
   style,
   transparent = false,
 }) => {
+  const hPad = rp();
+
   // Greeting variant (Home screen)
   if (greeting) {
     return (
-      <View style={[styles.container, transparent && styles.transparent, style]}>
+      <View
+        style={[
+          styles.container,
+          transparent && styles.transparent,
+          { paddingHorizontal: hPad },
+          style,
+        ]}
+      >
+        {/* Left: avatar + greeting — flex: 1 so it takes remaining space */}
         <View style={styles.greetingRow}>
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatarPlaceholder}>
-              <Ionicons name="person" size={20} color={colors.textSecondary} />
-            </View>
+          <View style={styles.avatarPlaceholder}>
+            <Ionicons name="person" size={rs(18)} color={colors.textSecondary} />
           </View>
-          <Text style={styles.greetingText}>
-            {greeting}, <Text style={styles.greetingName}>{greetingName}</Text>
-          </Text>
+          {/* minWidth: 0 is the key fix for text overflow in flex children */}
+          <View style={styles.greetingTextContainer}>
+            <Text style={styles.greetingLabel} numberOfLines={1}>
+              {greeting}
+            </Text>
+            <Text style={styles.greetingName} numberOfLines={1} ellipsizeMode="tail">
+              {greetingName}
+            </Text>
+          </View>
         </View>
+
+        {/* Right: notification icon */}
         {onNotifications && (
           <TouchableOpacity
             onPress={onNotifications}
             style={styles.iconButton}
             accessibilityLabel={`Notifications, ${notificationCount} unread`}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="notifications-outline" size={24} color={colors.textPrimary} />
+            <Ionicons
+              name="notifications-outline"
+              size={rs(22)}
+              color={colors.textPrimary}
+            />
             {notificationCount > 0 && (
               <CountBadge count={notificationCount} style={styles.notifBadge} />
             )}
@@ -65,19 +91,33 @@ export const Header: React.FC<HeaderProps> = ({
 
   // Standard header
   return (
-    <View style={[styles.container, transparent && styles.transparent, style]}>
+    <View
+      style={[
+        styles.container,
+        transparent && styles.transparent,
+        { paddingHorizontal: hPad },
+        style,
+      ]}
+    >
       <View style={styles.leftSection}>
         {onBack && (
           <TouchableOpacity
             onPress={onBack}
-            style={styles.iconButton}
+            style={[styles.iconButton, styles.backButton]}
             accessibilityLabel="Go back"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+            <Ionicons name="arrow-back" size={rs(22)} color={colors.textPrimary} />
           </TouchableOpacity>
         )}
         {title && (
-          <Text style={[styles.title, !onBack && styles.titleNoBack]}>{title}</Text>
+          <Text
+            style={[styles.title, !onBack && styles.titleNoBack]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {title}
+          </Text>
         )}
       </View>
       <View style={styles.rightSection}>
@@ -87,8 +127,12 @@ export const Header: React.FC<HeaderProps> = ({
           </TouchableOpacity>
         )}
         {rightIcon && (
-          <TouchableOpacity onPress={onRightPress} style={styles.iconButton}>
-            <Ionicons name={rightIcon} size={24} color={colors.textPrimary} />
+          <TouchableOpacity
+            onPress={onRightPress}
+            style={styles.iconButton}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name={rightIcon} size={rs(22)} color={colors.textPrimary} />
           </TouchableOpacity>
         )}
         {onNotifications && (
@@ -96,8 +140,13 @@ export const Header: React.FC<HeaderProps> = ({
             onPress={onNotifications}
             style={styles.iconButton}
             accessibilityLabel={`Notifications, ${notificationCount} unread`}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="notifications-outline" size={24} color={colors.textPrimary} />
+            <Ionicons
+              name="notifications-outline"
+              size={rs(22)}
+              color={colors.textPrimary}
+            />
             {notificationCount > 0 && (
               <CountBadge count={notificationCount} style={styles.notifBadge} />
             )}
@@ -113,67 +162,85 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: layout.headerHeight,
-    paddingHorizontal: layout.screenPadding,
+    // No fixed height — use padding for breathing room
+    paddingVertical: rs(10),
     backgroundColor: colors.background,
   },
   transparent: {
     backgroundColor: 'transparent',
   },
+
+  // Standard header
   leftSection: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    minWidth: 0,
   },
   rightSection: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexShrink: 0,
+  },
+  backButton: {
+    marginRight: 4,
   },
   iconButton: {
-    padding: 8,
+    padding: 6,
     position: 'relative',
   },
   title: {
-    fontSize: 20,
+    fontSize: rf(18),
     fontWeight: '700',
     color: colors.textPrimary,
-    marginLeft: 8,
+    marginLeft: 6,
+    flex: 1,
+    minWidth: 0,
   },
   titleNoBack: {
     marginLeft: 0,
   },
   rightText: {
-    fontSize: 16,
+    fontSize: rf(15),
     fontWeight: '600',
     color: colors.primary,
+    marginRight: 4,
   },
+
+  // Greeting variant
   greetingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-  },
-  avatarContainer: {
-    marginRight: 12,
+    minWidth: 0,
   },
   avatarPlaceholder: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: rs(40),
+    height: rs(40),
+    borderRadius: rs(20),
     backgroundColor: colors.borderLight,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
-  greetingText: {
-    fontSize: 20,
-    color: colors.textPrimary,
+  greetingTextContainer: {
+    marginLeft: rs(10),
+    flex: 1,
+    minWidth: 0,
+  },
+  greetingLabel: {
+    fontSize: rf(12),
+    color: colors.textSecondary,
     fontWeight: '400',
   },
   greetingName: {
+    fontSize: rf(17),
     fontWeight: '700',
+    color: colors.textPrimary,
   },
   notifBadge: {
     position: 'absolute',
-    top: 4,
-    right: 4,
+    top: 2,
+    right: 2,
   },
 });

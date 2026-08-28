@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity, SafeAreaView,
+  View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../navigation/types';
 import { colors } from '../../theme/colors';
