@@ -1,0 +1,14 @@
+{
+  "name": "projects/13061269662207157546",
+  "projectId": "13061269662207157546",
+  "title": "Artisan-AI",
+  "visibility": "PRIVATE",
+  "projectType": "PROJECT_DESIGN",
+  "origin": "STITCH",
+  "deviceType": "MOBILE",
+  "designSystem": {
+    "id": "assets/1245954230737724841",
+    "displayName": "Artisan-AI Design System"
+  },
+  "screens": {}
+}

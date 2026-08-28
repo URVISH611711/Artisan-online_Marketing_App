@@ -1,0 +1,270 @@
+{
+  "common": {
+    "continue": "Continue",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "back": "Back",
+    "skip": "Skip",
+    "retry": "Try Again",
+    "loading": "Loading...",
+    "search": "Search",
+    "viewAll": "View All",
+    "done": "Done"
+  },
+  "splash": {
+    "tagline": "Your Craft. Your Market. Powered by AI.",
+    "footer": "EMPOWERING ARTISANS ACROSS INDIA"
+  },
+  "language": {
+    "title": "Choose your language",
+    "subtitle": "अपनी भाषा चुनें",
+    "hint": "You can change this later in Settings"
+  },
+  "onboarding": {
+    "title1": "Turn your craft into a digital catalog",
+    "desc1": "Take a photo and let AI create a professional product listing with the perfect description.",
+    "title2": "Just speak. AI creates your listing.",
+    "desc2": "No typing needed. Describe your product in your language and AI will create the catalog.",
+    "title3": "Reach buyers beyond exhibitions",
+    "desc3": "Connect with B2B buyers across India. Sell your craft year-round, not just at exhibitions.",
+    "getStarted": "Get Started"
+  },
+  "auth": {
+    "welcome": "Welcome to Artisan-AI",
+    "enterMobile": "Enter your mobile number to get started",
+    "mobileNumber": "Mobile Number",
+    "termsPrefix": "By continuing, you agree to our",
+    "termsOfService": "Terms of Service",
+    "and": "and",
+    "privacyPolicy": "Privacy Policy",
+    "verifyTitle": "Verify your number",
+    "otpSent": "We sent a 4-digit code to",
+    "resendIn": "Resend code in",
+    "didNotReceive": "Didn't receive code?",
+    "resend": "Resend",
+    "verify": "Verify"
+  },
+  "registration": {
+    "title": "Tell us about yourself",
+    "subtitle": "Just a few details to set up your shop",
+    "addPhoto": "Add your photo",
+    "name": "Your Name",
+    "businessName": "Business / Shop Name",
+    "craftCategory": "Craft Category",
+    "state": "State / Location",
+    "voiceHint": "You can also say your details",
+    "createShop": "Create My Shop"
+  },
+  "home": {
+    "greeting": "Namaste",
+    "businessToday": "Your business today",
+    "products": "Products",
+    "orders": "Orders",
+    "sales": "Sales",
+    "addProduct": "Add Product",
+    "addProductDesc": "Take a photo and let AI do the rest",
+    "describeByVoice": "Describe by Voice",
+    "myProducts": "My Products",
+    "smartPricing": "Smart Pricing",
+    "smartPricingDesc": "Market trends & recommendations",
+    "aiSuggestion": "AI Suggestion",
+    "viewSuggestion": "View suggestion"
+  },
+  "camera": {
+    "title": "Take a Photo",
+    "productDetected": "Product detected",
+    "tip": "Keep the product flat and well-lit",
+    "gallery": "Gallery"
+  },
+  "aiStudio": {
+    "title": "AI Product Studio",
+    "original": "Original",
+    "enhanced": "Enhanced",
+    "aiEnhanced": "AI Enhanced",
+    "bgRemoved": "Background removed",
+    "lightingCorrected": "Lighting corrected",
+    "perspectiveCorrected": "Perspective corrected",
+    "sharpnessImproved": "Sharpness improved",
+    "ecommerceCrop": "E-commerce crop applied",
+    "background": "Background",
+    "bgOriginal": "Original",
+    "bgWhite": "White",
+    "bgStudio": "Studio",
+    "bgTransparent": "Transparent"
+  },
+  "voice": {
+    "title": "Tell us about your product",
+    "subtitle": "Speak naturally in your language. You don't need to type.",
+    "tapToSpeak": "Tap and start speaking",
+    "whatToSay": "What to say:",
+    "prompt1": "What is this product made of?",
+    "prompt1Desc": "Materials, fabric, or clay type",
+    "prompt2": "How long does it take to make?",
+    "prompt2Desc": "Time and effort involved",
+    "prompt3": "What makes it special?",
+    "prompt3Desc": "Unique patterns or traditional techniques",
+    "preferToType": "Prefer to type? Enter details manually",
+    "skipForNow": "Skip for now"
+  },
+  "extraction": {
+    "title": "We understood",
+    "subtitle": "AI generated — Please review",
+    "addMore": "Add more details"
+  },
+  "processing": {
+    "title": "Creating your catalog...",
+    "subtitle": "This usually takes about 30 seconds",
+    "step1": "Understanding your product",
+    "step2": "Identifying product details",
+    "step3": "Creating product title",
+    "step4": "Writing product description",
+    "step5": "Creating keywords",
+    "step6": "Preparing translation"
+  },
+  "catalog": {
+    "title": "Your Catalog",
+    "productName": "Product Name",
+    "description": "Description",
+    "aiGenerated": "AI generated — Please review",
+    "regenerate": "Regenerate"
+  },
+  "pricing": {
+    "title": "Smart Price",
+    "recommended": "RECOMMENDED SELLING PRICE",
+    "aiRecommended": "AI Recommended",
+    "marketLow": "Market Low",
+    "marketHigh": "Market High",
+    "costBreakdown": "Cost Breakdown",
+    "material": "Material",
+    "labour": "Labour",
+    "packaging": "Packaging",
+    "totalCost": "Total Cost",
+    "estimatedProfit": "Estimated Profit",
+    "perUnit": "per unit",
+    "usePrice": "Use",
+    "editPrice": "Edit Price manually"
+  },
+  "review": {
+    "title": "Review & Publish",
+    "readyToPublish": "Ready to publish",
+    "professionalPhoto": "Professional photo",
+    "productInfo": "Product information",
+    "englishDesc": "English description",
+    "hindiDesc": "हिंदी description",
+    "priceSet": "Recommended price set",
+    "publish": "Publish Product"
+  },
+  "success": {
+    "title": "Your product is live!",
+    "subtitle": "Buyers can now discover your craft",
+    "viewProduct": "View Product",
+    "shareProduct": "Share Product",
+    "addAnother": "Add Another Product"
+  },
+  "products": {
+    "title": "My Products",
+    "add": "+ Add",
+    "all": "All",
+    "live": "Live",
+    "draft": "Draft",
+    "outOfStock": "Out of Stock",
+    "emptyTitle": "No products yet",
+    "emptyMessage": "Let's add your first product. Take a photo and AI will do the rest."
+  },
+  "orders": {
+    "title": "Orders",
+    "all": "All",
+    "new": "New",
+    "processing": "Processing",
+    "completed": "Completed",
+    "viewOrder": "View Order",
+    "accept": "Accept Order",
+    "reject": "Decline",
+    "counterOffer": "Send Counter Offer",
+    "emptyTitle": "No orders yet",
+    "emptyMessage": "Your products are ready for buyers. Orders will appear here."
+  },
+  "sales": {
+    "title": "Sales",
+    "thisMonth": "This Month",
+    "salesThisMonth": "Sales This Month",
+    "fromLastMonth": "from last month",
+    "avgOrder": "Avg. Order",
+    "buyerInterest": "Buyer Interest",
+    "newInquiries": "new inquiries this week",
+    "topProducts": "Top Products",
+    "view": "View"
+  },
+  "insights": {
+    "title": "AI Insights",
+    "subtitle": "Here's what AI noticed about your business"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markAllRead": "Mark all read",
+    "today": "Today",
+    "yesterday": "Yesterday"
+  },
+  "profile": {
+    "title": "Artisan Profile",
+    "editProfile": "Edit Profile",
+    "business": "Business",
+    "businessName": "Business Name",
+    "craftType": "Craft Type",
+    "location": "Location",
+    "contact": "Contact",
+    "preferences": "Preferences",
+    "appLanguage": "App Language",
+    "voiceLanguage": "Voice Language",
+    "aiVoice": "AI Voice",
+    "account": "Account",
+    "privacy": "Privacy",
+    "security": "Security",
+    "logout": "Logout"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "LANGUAGE",
+    "ai": "AI",
+    "autoImageEnhancement": "Auto Image Enhancement",
+    "autoTranslation": "Auto Translation",
+    "businessSettings": "BUSINESS",
+    "defaultProfitMargin": "Default Profit Margin",
+    "shippingSettings": "Shipping Settings",
+    "currency": "Currency",
+    "help": "HELP",
+    "tutorials": "Tutorials",
+    "voiceHelp": "Voice Help",
+    "faqs": "FAQs",
+    "contactSupport": "Contact Support",
+    "about": "ABOUT",
+    "appVersion": "App Version",
+    "terms": "Terms of Service",
+    "privacyPolicy": "Privacy Policy"
+  },
+  "marketplace": {
+    "searchPlaceholder": "Search crafts, artisans, or products...",
+    "browseCategories": "Browse Categories",
+    "featuredArtisans": "Featured Artisans",
+    "trendingProducts": "Trending Products",
+    "productsFound": "products found",
+    "contactArtisan": "Contact Artisan",
+    "requestBulkQuote": "Request Bulk Quote",
+    "availableForBulk": "Available for bulk orders",
+    "minOrder": "Minimum order",
+    "productionTime": "Production time"
+  },
+  "assistant": {
+    "title": "Artisan-AI",
+    "listening": "Listening...",
+    "quickActions": "Quick actions",
+    "addProduct": "Add Product",
+    "checkSales": "Check Sales",
+    "setPrice": "Set Price",
+    "findBuyers": "Find Buyers",
+    "manageOrders": "Manage Orders",
+    "typePlaceholder": "Type or tap mic to speak..."
+  }
+}
