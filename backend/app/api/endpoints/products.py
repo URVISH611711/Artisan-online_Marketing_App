@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session, joinedload
 from typing import Optional, List
 
 from app.database.connection import get_db
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, ensure_artisan_profile
+from app.core.enums import coerce_enum
 from app.models.user import User
 from app.models.product import Product, ProductStatus, ProductImage, Inventory
 from app.schemas.product import ProductResponse, ProductCreate, ProductUpdate
@@ -27,11 +28,9 @@ def list_products(
     )
 
     if status_filter:
-        try:
-            ps = ProductStatus(status_filter.upper())
+        ps = coerce_enum(ProductStatus, status_filter)
+        if ps is not None:
             query = query.filter(Product.status == ps)
-        except ValueError:
-            pass
 
     products = query.order_by(Product.created_at.desc()).all()
     return products
@@ -86,6 +85,10 @@ def create_product(
     db: Session = Depends(get_db),
 ):
     """Create a new product for the authenticated artisan."""
+    # artisan_id FKs to artisan_profiles.user_id — without this row the INSERT
+    # below fails with a foreign-key violation.
+    ensure_artisan_profile(db, current_user)
+
     product = Product(
         id=uuid.uuid4(),
         artisan_id=current_user.id,
@@ -135,10 +138,10 @@ def update_product(
     update_data = payload.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         if key == "status" and value:
-            try:
-                value = ProductStatus(value.upper())
-            except ValueError:
+            coerced = coerce_enum(ProductStatus, value)
+            if coerced is None:
                 raise HTTPException(status_code=400, detail=f"Invalid status: {value}")
+            value = coerced
         if key == "quantity":
             # Update inventory instead
             if product.inventory:

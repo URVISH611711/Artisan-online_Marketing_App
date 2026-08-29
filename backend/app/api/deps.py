@@ -1,16 +1,20 @@
 from typing import Generator
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
-import os
 
+from app.core.config import settings
 from app.database.connection import SessionLocal
 from app.models.user import User
 
 security = HTTPBearer()
 
-SECRET_KEY = os.getenv("SECRET_KEY", "fallback_secret_key_for_dev")
+# Read from pydantic-settings (which loads .env). os.getenv() does NOT see .env
+# because nothing calls load_dotenv() — using it silently signed every JWT with
+# the hardcoded fallback string.
+SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = "HS256"
 
 
@@ -59,3 +63,49 @@ def get_current_user(
             detail="Account is deactivated",
         )
     return user
+
+
+def ensure_artisan_profile(db: Session, user: User) -> "ArtisanProfile":
+    """
+    Idempotently guarantee an ArtisanProfile row exists for `user`, and return it.
+
+    Product.artisan_id carries a FK to artisan_profiles.user_id, so a user with
+    no row here cannot create ANY product — the INSERT dies with a foreign-key
+    violation. Registration only ever created the `users` row, so this both
+    fixes new signups and self-heals accounts created before the fix.
+
+    business_name / craft_type / location / state are NOT NULL in the schema.
+    We seed only what we actually know (the user's own name and address) and
+    leave the rest as empty strings rather than inventing a craft or a state —
+    the artisan fills those in via PUT /profile/.
+    """
+    from app.models.user import ArtisanProfile
+
+    profile = (
+        db.query(ArtisanProfile).filter(ArtisanProfile.user_id == user.id).first()
+    )
+    if profile is not None:
+        return profile
+
+    profile = ArtisanProfile(
+        user_id=user.id,
+        business_name=user.name,
+        craft_type="",
+        location=user.address or "",
+        state="",
+    )
+    db.add(profile)
+    try:
+        db.commit()
+    except IntegrityError:
+        # A concurrent request won the race — adopt the row it created.
+        db.rollback()
+        profile = (
+            db.query(ArtisanProfile).filter(ArtisanProfile.user_id == user.id).first()
+        )
+        if profile is None:
+            raise
+        return profile
+
+    db.refresh(profile)
+    return profile

@@ -5,15 +5,15 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional
 from datetime import datetime, timedelta, timezone
 import jwt
-import os
 import random
 from typing import Dict
 
+from app.core.config import settings
 from app.database.connection import get_db
 from app.models.user import User, UserRole
 from app.schemas.user import UserResponse, UserSignUp
 from app.services.email import send_otp_email
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, ensure_artisan_profile
 from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
@@ -32,9 +32,9 @@ router = APIRouter()
 # In-memory OTP store for prototype. In production, use Redis.
 OTP_STORE: Dict[str, dict] = {}
 
-SECRET_KEY = os.getenv("SECRET_KEY", "fallback_secret_key_for_dev")
+SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "43200"))
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
 
 class LoginRequest(BaseModel):
@@ -215,6 +215,12 @@ def verify_otp(request: VerifyOTPRequest, db: Session = Depends(get_db)):
         user.is_verified = True
         db.commit()
         db.refresh(user)
+
+    # Products FK to artisan_profiles.user_id, so an artisan without this row
+    # cannot save a single product. Create it here (idempotent, so it also
+    # backfills accounts registered before this was fixed).
+    if user.role == UserRole.ARTISAN:
+        ensure_artisan_profile(db, user)
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(

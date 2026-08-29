@@ -1,4 +1,4 @@
-﻿"""
+"""
 Local Stable Diffusion 1.5 Inpainting.
 Aggressively optimized for 4GB VRAM (RTX 2050).
 """
@@ -22,10 +22,24 @@ def get_sd_pipeline():
         from diffusers import StableDiffusionInpaintPipeline
         
         # Load in fp16 to save memory
-        _sd_pipe = StableDiffusionInpaintPipeline.from_pretrained(
-            "runwayml/stable-diffusion-inpainting",
-            torch_dtype=torch.float16
-        )
+        import os
+        from app.core.config import settings
+        local_ckpt_path = os.path.join(settings.MODEL_DIR, "sd-v1-5-inpainting.ckpt")
+        
+        if os.path.exists(local_ckpt_path):
+            logger.info(f"[SD] Found local checkpoint at {local_ckpt_path}. Loading from single file...")
+            _sd_pipe = StableDiffusionInpaintPipeline.from_single_file(
+                local_ckpt_path,
+                torch_dtype=torch.float16,
+                use_safetensors=False
+            )
+        else:
+            logger.info("[SD] Loading from HuggingFace cache...")
+            _sd_pipe = StableDiffusionInpaintPipeline.from_pretrained(
+                "runwayml/stable-diffusion-inpainting",
+                torch_dtype=torch.float16,
+                use_safetensors=False
+            )
         
         # Aggressive memory optimizations for 4GB VRAM
         _sd_pipe.enable_model_cpu_offload() # Offload parts to CPU when not actively computing

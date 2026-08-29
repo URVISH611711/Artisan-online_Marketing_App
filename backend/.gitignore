@@ -4,3 +4,12 @@ __pycache__/
 .env
 .env.*
 !.env.example
+
+# Local AI model weights (multi-GB, downloaded on first run)
+models/
+*.ckpt
+*.safetensors
+*.bin
+
+# Local storage fallback when Supabase Storage is unavailable
+uploads/

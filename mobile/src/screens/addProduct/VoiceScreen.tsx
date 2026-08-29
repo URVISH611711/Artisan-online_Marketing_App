@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, TextInput, ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -8,10 +8,10 @@ import { AddProductStackParamList } from '../../navigation/types';
 import { colors } from '../../theme/colors';
 import { layout } from '../../theme/spacing';
 import { Button } from '../../components/ui/Button';
-import { Header } from '../../components/layout/Header';
 import { ProgressStepper } from '../../components/layout/ProgressStepper';
 import { useDraftStore } from '../../store/useDraftStore';
 import { Ionicons } from '@expo/vector-icons';
+import { useAudioRecorder, AudioModule } from 'expo-audio';
 
 type Props = { navigation: NativeStackNavigationProp<AddProductStackParamList, 'Voice'> };
 
@@ -28,36 +28,71 @@ const PROMPTS = [
 ];
 
 export const VoiceScreen: React.FC<Props> = ({ navigation }) => {
-  const [isRecording, setIsRecording] = useState(false);
   const [selectedLang, setSelectedLang] = useState('hi');
   const [langPickerOpen, setLangPickerOpen] = useState(false);
+  
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [transcript, setTranscript] = useState('');
+  
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
   const { updateDraft } = useDraftStore();
 
-  const handleMicPress = async () => {
-    if (isRecording) {
-      setIsRecording(false);
-      try {
-        const { transcribeVoice } = require('../../services/api');
-        // We'd actually get a recorded URI from expo-av here, but since the logic isn't fully implemented in this snippet,
-        // we'll simulate the URI. In a full implementation, this uses the Audio.Recording URI.
-        const audioUri = 'file://mock/audio/path.m4a'; // Replace with real URI from expo-av
-        const result = await transcribeVoice(audioUri);
-        updateDraft({ transcript: result.text, transcriptLanguage: result.language || selectedLang });
-      } catch (err) {
-        console.warn('Transcription failed:', err);
-        // Fallback or error handling
+  const audioRecorder = useAudioRecorder({
+    sampleRate: 16000,
+    numberOfChannels: 1,
+    bitRate: 128000,
+  });
+
+  // Request permissions on mount
+  useEffect(() => {
+    (async () => {
+      const status = await AudioModule.requestRecordingPermissionsAsync();
+      if (!status.granted) {
+        console.warn('Microphone permission not granted');
       }
-      navigation.navigate('Extraction');
-    } else {
-      setIsRecording(true);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (audioRecorder.isRecording) {
       Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, { toValue: 1.15, duration: 600, useNativeDriver: true }),
           Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
         ]),
       ).start();
+    } else {
+      pulseAnim.stopAnimation();
+      pulseAnim.setValue(1);
     }
+  }, [audioRecorder.isRecording, pulseAnim]);
+
+  const handleMicPress = async () => {
+    if (audioRecorder.isRecording) {
+      await audioRecorder.stop();
+      
+      if (audioRecorder.uri) {
+        setIsTranscribing(true);
+        try {
+          const { transcribeVoice } = require('../../services/api');
+          const result = await transcribeVoice(audioRecorder.uri);
+          
+          setTranscript((prev) => (prev ? prev + ' ' + result.text : result.text).trim());
+          updateDraft({ transcriptLanguage: result.language || selectedLang });
+        } catch (err) {
+          console.warn('Transcription failed:', err);
+        } finally {
+          setIsTranscribing(false);
+        }
+      }
+    } else {
+      await audioRecorder.record();
+    }
+  };
+
+  const handleNext = () => {
+    updateDraft({ transcript });
+    navigation.navigate('ProductDetails');
   };
 
   const selectedLangName = LANGUAGES.find((l) => l.code === selectedLang)?.name || 'Hindi';
@@ -68,7 +103,7 @@ export const VoiceScreen: React.FC<Props> = ({ navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <ProgressStepper totalSteps={7} currentStep={2} />
+        <ProgressStepper totalSteps={5} currentStep={1} />
         <View style={{ width: 40 }} />
       </View>
 
@@ -103,41 +138,63 @@ export const VoiceScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.micContainer}>
           <Animated.View style={[styles.micPulse, { transform: [{ scale: pulseAnim }] }]}>
             <TouchableOpacity
-              style={[styles.micButton, isRecording && styles.micButtonRecording]}
+              style={[styles.micButton, audioRecorder.isRecording && styles.micButtonRecording]}
               onPress={handleMicPress}
               activeOpacity={0.8}
-              accessibilityLabel={isRecording ? 'Stop recording' : 'Start recording'}
+              disabled={isTranscribing}
             >
-              <Ionicons name={isRecording ? 'stop' : 'mic'} size={36} color="#fff" />
+              {isTranscribing ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Ionicons name={audioRecorder.isRecording ? 'stop' : 'mic'} size={36} color="#fff" />
+              )}
             </TouchableOpacity>
           </Animated.View>
           <Text style={styles.micLabel}>
-            {isRecording ? '● Recording...' : 'Tap and start speaking'}
+            {isTranscribing ? 'Transcribing...' : audioRecorder.isRecording ? '● Recording...' : 'Tap and start speaking'}
           </Text>
         </View>
+        
+        {/* Editable Transcript Area */}
+        {(transcript.length > 0 || isTranscribing) && (
+          <View style={styles.transcriptBox}>
+            <Text style={styles.transcriptLabel}>Transcript (You can edit this):</Text>
+            <TextInput
+              style={styles.transcriptInput}
+              multiline
+              value={transcript}
+              onChangeText={setTranscript}
+              placeholder="Your transcribed text will appear here..."
+              placeholderTextColor={colors.textSecondary}
+            />
+          </View>
+        )}
 
         {/* Prompt cards */}
-        <Text style={styles.promptsLabel}>What to say:</Text>
-        {PROMPTS.map((p, i) => (
-          <View key={i} style={styles.promptCard}>
-            <View style={styles.promptIcon}>
-              <Ionicons name={p.icon} size={20} color={colors.textSecondary} />
-            </View>
-            <View>
-              <Text style={styles.promptQ}>{p.question}</Text>
-              <Text style={styles.promptDesc}>{p.desc}</Text>
-            </View>
-          </View>
-        ))}
-
-        <TouchableOpacity onPress={() => navigation.navigate('Extraction')} style={styles.typeLink}>
-          <Ionicons name="keypad-outline" size={16} color={colors.primary} />
-          <Text style={styles.typeLinkText}>Prefer to type? Enter details manually</Text>
-        </TouchableOpacity>
+        {!transcript && !isTranscribing && (
+          <>
+            <Text style={styles.promptsLabel}>What to say:</Text>
+            {PROMPTS.map((p, i) => (
+              <View key={i} style={styles.promptCard}>
+                <View style={styles.promptIcon}>
+                  <Ionicons name={p.icon} size={20} color={colors.textSecondary} />
+                </View>
+                <View>
+                  <Text style={styles.promptQ}>{p.question}</Text>
+                  <Text style={styles.promptDesc}>{p.desc}</Text>
+                </View>
+              </View>
+            ))}
+          </>
+        )}
       </ScrollView>
 
       <View style={styles.footer}>
-        <Button title="Skip for now" onPress={() => navigation.navigate('Extraction')} variant="outline" />
+        <Button 
+          title={transcript.length > 0 ? "Continue" : "Skip for now"} 
+          onPress={handleNext} 
+          variant={transcript.length > 0 ? "primary" : "outline"} 
+        />
       </View>
     </SafeAreaView>
   );
@@ -178,6 +235,22 @@ const styles = StyleSheet.create({
   },
   micButtonRecording: { backgroundColor: colors.error },
   micLabel: { fontSize: 15, fontWeight: '600', color: colors.primary },
+  transcriptBox: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 20,
+  },
+  transcriptLabel: { fontSize: 13, color: colors.textSecondary, marginBottom: 8, fontWeight: '500' },
+  transcriptInput: {
+    fontSize: 15,
+    color: colors.textPrimary,
+    lineHeight: 22,
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
   promptsLabel: { fontSize: 13, color: colors.textSecondary, marginBottom: 10, fontWeight: '500' },
   promptCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 12,
@@ -190,7 +263,5 @@ const styles = StyleSheet.create({
   },
   promptQ: { fontSize: 15, fontWeight: '600', color: colors.textPrimary, marginBottom: 2 },
   promptDesc: { fontSize: 13, color: colors.textSecondary },
-  typeLink: { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center', paddingVertical: 16 },
-  typeLinkText: { fontSize: 14, color: colors.primary, fontWeight: '500' },
   footer: { paddingHorizontal: layout.screenPadding, paddingBottom: 28 },
 });

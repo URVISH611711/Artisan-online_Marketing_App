@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AddProductStackParamList } from '../../navigation/types';
 import { colors } from '../../theme/colors';
 import { layout } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
-import { useDraftStore } from '../../store/useDraftStore';
 import { Ionicons } from '@expo/vector-icons';
+import { publishStudioProduct } from '../../services/api';
 
-type Props = { navigation: NativeStackNavigationProp<AddProductStackParamList, 'Review'> };
+type Props = NativeStackScreenProps<AddProductStackParamList, 'Review'>;
 
 const CheckItem: React.FC<{ label: string; done?: boolean }> = ({ label, done = true }) => (
   <View style={styles.checkRow}>
@@ -21,19 +22,35 @@ const CheckItem: React.FC<{ label: string; done?: boolean }> = ({ label, done = 
   </View>
 );
 
-export const ReviewScreen: React.FC<Props> = ({ navigation }) => {
-  const { draft, updateDraft } = useDraftStore();
+export const ReviewScreen: React.FC<Props> = ({ navigation, route }) => {
+  const { jobId, enhancedUrls, productDetails } = route.params;
+  const insets = useSafeAreaInsets();
+  
   const [publishing, setPublishing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handlePublish = async () => {
+    if (publishing) return;
     setPublishing(true);
-    await new Promise((r) => setTimeout(r, 1500));
-    setPublishing(false);
-    navigation.navigate('Success', { productId: `prod_${Date.now()}` });
+    setErrorMessage('');
+    
+    try {
+      const res = await publishStudioProduct(jobId, productDetails);
+      if (res.success && res.product_id) {
+        navigation.navigate('Success', { productId: res.product_id });
+      } else {
+        throw new Error(res.message || 'Failed to publish product');
+      }
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Network error');
+      setPublishing(false);
+    }
   };
 
+  const previewImage = enhancedUrls.length > 0 ? enhancedUrls[0] : null;
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
@@ -42,53 +59,54 @@ export const ReviewScreen: React.FC<Props> = ({ navigation }) => {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: 150 + insets.bottom }]}>
         {/* Thumbnail */}
         <Card padding="none" style={styles.imageCard}>
-          {draft?.image ? (
-            <Image source={{ uri: draft.image }} style={styles.productImage} resizeMode="cover" />
+          {previewImage ? (
+            <Image source={{ uri: previewImage }} style={styles.productImage} resizeMode="cover" />
           ) : (
             <View style={[styles.productImage, styles.imagePlaceholder]}>
               <Ionicons name="image-outline" size={48} color={colors.textTertiary} />
             </View>
           )}
           <View style={styles.imageOverlay}>
-            <Text style={styles.productName}>{draft?.name || 'Handcrafted Patola Silk Saree'}</Text>
-            <Text style={styles.productPrice}>₹{(draft?.price || 2499).toLocaleString('en-IN')}</Text>
+            <Text style={styles.productName}>{productDetails.name}</Text>
+            {productDetails.price && (
+              <Text style={styles.productPrice}>₹{parseFloat(productDetails.price).toLocaleString('en-IN')}</Text>
+            )}
           </View>
         </Card>
 
         {/* Ready checklist */}
         <Text style={styles.readyLabel}>Ready to publish</Text>
         <Card padding="md" style={styles.checklistCard}>
-          <CheckItem label="Professional photo" />
-          <CheckItem label="Product information" />
-          <CheckItem label="English description" />
-          <CheckItem label="हिंदी description" />
-          <CheckItem label="Recommended price set" />
+          <CheckItem label="Professional photos created" />
+          <CheckItem label="Product details complete" />
+          <CheckItem label="Background style applied" />
+          <CheckItem label="Price configured" done={!!productDetails.price} />
         </Card>
-
-        {/* AI disclaimer */}
-        <View style={styles.aiDisclaimer}>
-          <Ionicons name="information-circle-outline" size={16} color={colors.textSecondary} />
-          <Text style={styles.aiDisclaimerText}>
-            Descriptions were AI generated. You reviewed and confirmed them.
-          </Text>
-        </View>
+        
+        {errorMessage ? (
+          <View style={styles.errorContainer}>
+            <Ionicons name="alert-circle" size={20} color={colors.warning} />
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          </View>
+        ) : null}
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <Button
           title="Publish Product"
           onPress={handlePublish}
           loading={publishing}
-          icon="arrow-up-circle-outline"
-          iconPosition="right"
+          disabled={publishing}
+          rightIcon={<Ionicons name="arrow-up-circle-outline" size={20} color={colors.surface} />}
         />
         <Button
-          title="Save as Draft"
+          title="Go Back"
           onPress={() => navigation.goBack()}
           variant="outline"
+          disabled={publishing}
           style={{ marginTop: 10 }}
         />
       </View>
@@ -98,31 +116,48 @@ export const ReviewScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
+  header: { 
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', 
+    paddingHorizontal: 16, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: colors.border
+  },
   backBtn: { padding: 8 },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: colors.textPrimary },
-  scroll: { paddingHorizontal: layout.screenPadding, paddingBottom: 20 },
-  imageCard: { marginBottom: 20, overflow: 'hidden', borderRadius: 16 },
-  productImage: { width: '100%', height: 200 },
-  imagePlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.borderLight },
+  headerTitle: { ...typography.h3, color: colors.textPrimary },
+  scroll: { paddingHorizontal: layout.screenPadding, paddingTop: 16 },
+  
+  imageCard: { marginBottom: 24, overflow: 'hidden', borderRadius: 16 },
+  productImage: { width: '100%', height: 260 },
+  imagePlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   imageOverlay: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: 'rgba(0,0,0,0.55)', padding: 16,
+    backgroundColor: 'rgba(0,0,0,0.6)', padding: 16,
   },
-  productName: { fontSize: 18, fontWeight: '700', color: '#fff', marginBottom: 4 },
-  productPrice: { fontSize: 20, fontWeight: '800', color: '#fff' },
-  readyLabel: { fontSize: 18, fontWeight: '700', color: colors.textPrimary, marginBottom: 12 },
+  productName: { ...typography.h4, color: '#fff', marginBottom: 4 },
+  productPrice: { ...typography.h3, fontWeight: '800', color: '#fff' },
+  
+  readyLabel: { ...typography.h4, color: colors.textPrimary, marginBottom: 12 },
   checklistCard: { marginBottom: 16 },
   checkRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
-  checkIcon: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  checkIcon: { 
+    width: 24, height: 24, borderRadius: 12, 
+    alignItems: 'center', justifyContent: 'center', marginRight: 12 
+  },
   checkDone: { backgroundColor: colors.success },
   checkPending: { backgroundColor: colors.border },
-  checkLabel: { fontSize: 15, color: colors.textPrimary, fontWeight: '500' },
+  checkLabel: { ...typography.body1, color: colors.textPrimary, fontWeight: '500' },
   checkLabelPending: { color: colors.textSecondary },
-  aiDisclaimer: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: '#F8FAFC', borderRadius: 10, padding: 12,
+  
+  errorContainer: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#FFF5F5', padding: 12, borderRadius: 8,
+    marginTop: 8,
   },
-  aiDisclaimerText: { fontSize: 13, color: colors.textSecondary, flex: 1, lineHeight: 18 },
-  footer: { paddingHorizontal: layout.screenPadding, paddingBottom: 28 },
+  errorText: { ...typography.body2, color: colors.warning, flex: 1 },
+  
+  footer: { 
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: colors.background,
+    paddingHorizontal: layout.screenPadding, 
+    paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border
+  },
 });

@@ -50,7 +50,7 @@ export interface ProductDraft {
   enhancedImages?: string[];  // server-returned enhanced image URLs
   originalUrls?: string[];    // server-stored original image URLs
   enhancementJobId?: string;  // session_id from backend
-  enhancementModel?: string;  // e.g. 'gemini-2.0-flash-exp'
+  enhancementModel?: string;  // e.g. 'briaai/RMBG-1.4'
   enhancements?: {
     background_cleaned?: boolean;
     lighting_adjusted?: boolean;

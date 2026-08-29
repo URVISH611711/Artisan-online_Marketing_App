@@ -1,0 +1,684 @@
+"""
+AI Product Studio endpoints.
+
+POST /ai/studio/process    — Start a studio job (images + product details + mode)
+GET  /ai/studio/status/{job_id} — Poll job status (with ownership check)
+POST /ai/studio/regenerate — Reuse RMBG artifacts, regenerate background only
+POST /ai/studio/publish    — Create Product + ProductImage rows, return real product_id
+"""
+import logging
+import time
+import uuid
+from datetime import datetime, timezone
+from typing import Optional, List
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request, BackgroundTasks
+from sqlalchemy.orm import Session
+
+from app.database.connection import get_db
+from app.api.deps import get_current_user, ensure_artisan_profile
+from app.core.enums import coerce_enum
+from app.models.user import User
+from app.models.product import Product, ProductStatus, ProductImage, Inventory, ImageType
+from app.models.ai import AIProcessingJob
+from app.schemas.studio import (
+    StudioProcessResponse,
+    StudioJobStatusResponse,
+    StudioRegenerateRequest,
+    StudioPublishRequest,
+    StudioPublishResponse,
+    BackgroundModeEnum,
+)
+from app.services.image_enhance import validate_image
+from app.services.storage import save_image
+from app.services.job_manager import create_job, get_job, update_job, mark_job_failed, JobStatus
+from app.services.ai.background_modes import BackgroundMode, get_mode
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+
+MAX_IMAGES = settings.MAX_PRODUCT_IMAGES
+
+
+def _ext(mime: str) -> str:
+    if "png" in mime:
+        return "png"
+    if "webp" in mime:
+        return "webp"
+    return "jpg"
+
+
+# ── Background worker ─────────────────────────────────────────────────────────
+
+def _run_studio_job(
+    job_id: str,
+    user_id: str,
+    image_data_list: list,
+    original_urls: list,
+    storage_paths: list,
+    product_details: dict,
+    background_mode: str,
+    custom_prompt: str,
+    base_url: str,
+    db_url: str,  # passed as string so worker can open its own session
+):
+    """
+    Full studio pipeline. Runs in Starlette's threadpool (def, not async def).
+
+    Stages:
+      1. Analyze text → SD prompt  (LLM_TEXT)
+      2. Per image: RMBG → composite  (RMBG → image_compositor)
+      3. Save final images to Supabase/local
+    """
+    from app.database.connection import SessionLocal
+    from app.services.llm_prompt import generate_sd_prompt, unload_llm_pipeline
+    from app.services.rmbg_enhance import remove_background
+    from app.services.ai.model_manager import model_manager, ModelKey
+    from app.services.ai.gpu_lock import gpu_lock
+    from app.services.ai.image_compositor import split_cutout, clean_white, composite
+    from app.services.ai.background_modes import BackgroundMode, get_mode, build_prompt
+    from app.services.memory_manager import memory_manager
+    from app.services.ai.artifact_cache import store_artifacts
+    from app.services.ai.upscaler import upscale_image
+
+    db = SessionLocal()
+    started_at = datetime.now(timezone.utc)
+
+    try:
+        mode = BackgroundMode(background_mode)
+        mode_config = get_mode(mode)
+
+        update_job(job_id, JobStatus.ANALYZING_PRODUCT, progress=5,
+                   message="Analyzing product details...")
+
+        # 1. Generate SD prompt via local LLM (always useful even for CLEAN_WHITE
+        #    since it may be reused for future Regenerate calls)
+        prompt_data = {}
+        try:
+            with gpu_lock(f"backend-LLM-{job_id}"):
+                with model_manager.using(ModelKey.LLM_TEXT):
+                    prompt_data = generate_sd_prompt(product_details)
+        except Exception as e:
+            logger.warning(f"[Studio] LLM prompt failed, using defaults: {e}")
+            prompt_data = {
+                "prompt": f"professional product photography, {product_details.get('name', 'craft product')}",
+                "negative_prompt": "blurry, low quality, distorted",
+            }
+
+        sd_prompt = prompt_data.get("prompt", "")
+        sd_negative = prompt_data.get("negative_prompt", "")
+
+        final_urls = []
+        final_paths = []
+        transparent_bytes_list = []
+
+        for i, (img_bytes, mime) in enumerate(image_data_list):
+            logger.info(f"[Studio {job_id}] Processing image {i+1}/{len(image_data_list)}")
+
+            # 2a. Remove background
+            update_job(
+                job_id, JobStatus.REMOVING_BACKGROUND,
+                progress=20 + int(20 * i / len(image_data_list)),
+                message=f"Removing background ({i+1}/{len(image_data_list)})...",
+            )
+            with gpu_lock(f"backend-RMBG-{job_id}"):
+                with model_manager.using(ModelKey.RMBG):
+                    rmbg_result = remove_background(img_bytes, mime)
+
+            transparent_bytes = rmbg_result["enhanced_image_bytes"]
+            transparent_bytes_list.append(transparent_bytes)
+            
+            update_job(job_id, JobStatus.PRODUCT_ISOLATED,
+                       progress=45 + int(10 * i / len(image_data_list)),
+                       message="Product isolated...")
+
+            # Save transparent PNG
+            transp_filename = f"transparent_{i+1}_{job_id}.png"
+            transp_path, transp_url = save_image(
+                user_id, job_id, transparent_bytes, transp_filename,
+                subfolder="transparent", content_type="image/png", base_url=base_url,
+            )
+
+            # 2b. Composite
+            update_job(
+                job_id, JobStatus.GENERATING_BACKGROUND,
+                progress=55 + int(25 * i / len(image_data_list)),
+                message=f"Generating background ({i+1}/{len(image_data_list)})...",
+            )
+
+            from PIL import Image
+            import io as _io
+
+            pil_cutout = Image.open(_io.BytesIO(transparent_bytes)).convert("RGBA")
+            _, mask = split_cutout(transparent_bytes)
+
+            if mode == BackgroundMode.CLEAN_WHITE or not mode_config.uses_diffusion:
+                # CLEAN_WHITE: no SD, pure compositor
+                final_bytes = clean_white(
+                    pil_cutout, mask,
+                    shadow=True,
+                    light_dir=mode_config.light_dir,
+                )
+                final_image = Image.open(_io.BytesIO(final_bytes)).convert("RGB")
+                final_mime = "image/jpeg"
+            else:
+                # SD modes — fully wired with OOM ladder
+                from app.services.ai.background_generator import generate_diffusion_background
+                
+                logger.info(f"[Studio] Using SD Mode: {mode}. Prompt base: {mode_config.prompt_template}")
+                full_prompt = build_prompt(mode, sd_prompt, custom_prompt)
+                
+                try:
+                    with gpu_lock(f"backend-SD-{job_id}"):
+                        with model_manager.using(ModelKey.SD_INPAINT):
+                            bg_plate = generate_diffusion_background(
+                                pil_cutout, 
+                                mask, 
+                                prompt=full_prompt, 
+                                negative_prompt=mode_config.negative_prompt
+                            )
+                    
+                    # Composite generated background plate with the original product cutout
+                    final_image = composite(bg_plate, pil_cutout, mask, shadow=True, light_dir=mode_config.light_dir)
+                    
+                    import io as _io
+                    buf = _io.BytesIO()
+                    final_image.save(buf, format="JPEG", quality=95)
+                    final_bytes = buf.getvalue()
+                    final_mime = "image/jpeg"
+                    
+                except Exception as e:
+                    logger.error(f"[Studio] SD generation failed or OOM exhausted: {e}. Degrading to CLEAN_WHITE.")
+                    # Graceful degradation
+                    final_bytes = clean_white(
+                        pil_cutout, mask,
+                        shadow=True,
+                        light_dir=mode_config.light_dir,
+                    )
+                    from PIL import Image
+                    import io as _io
+                    final_image = Image.open(_io.BytesIO(final_bytes)).convert("RGB")
+                    final_mime = "image/jpeg"
+
+            update_job(job_id, JobStatus.UPSCALING, progress=85, message="Enhancing resolution...")
+            final_image = upscale_image(final_image, scale=2)
+            
+            import io as _io
+            buf = _io.BytesIO()
+            final_image.save(buf, format="JPEG", quality=95)
+            final_bytes = buf.getvalue()
+            final_mime = "image/jpeg"
+
+            update_job(job_id, JobStatus.COMPOSITING_PRODUCT,
+                       progress=88 + int(10 * i / len(image_data_list)),
+                       message="Saving product...")
+
+            # 3. Save final image
+            final_filename = f"final_{i+1}_{job_id}.jpg"
+            final_path, final_url = save_image(
+                user_id, job_id, final_bytes, final_filename,
+                subfolder="final", content_type=final_mime, base_url=base_url,
+            )
+            final_urls.append(final_url)
+            final_paths.append(final_path)
+
+        # Store in warm cache for instant regeneration
+        store_artifacts(job_id, {
+            "transparent_bytes_list": transparent_bytes_list,
+            "sd_prompt": sd_prompt,
+            "sd_negative": sd_negative,
+            "product_details": product_details,
+            "original_urls": original_urls,
+            "storage_paths": storage_paths,
+        })
+
+        update_job(job_id, JobStatus.SAVING, progress=92, message="Saving results...")
+
+        # Persist to ai_processing_jobs
+        _persist_job(
+            db=db,
+            job_id=job_id,
+            user_id=user_id,
+            product_details=product_details,
+            started_at=started_at,
+            original_urls=original_urls,
+            final_urls=final_urls,
+            original_paths=storage_paths,
+            final_paths=final_paths,
+            sd_prompt=sd_prompt,
+            background_mode=background_mode,
+        )
+
+        result = {
+            "original_urls": original_urls,
+            "enhanced_urls": final_urls,
+            "final_paths": final_paths,
+            "prompt_used": sd_prompt,
+            "background_mode": background_mode,
+        }
+        update_job(job_id, JobStatus.COMPLETED, progress=100, message="Complete!", result=result)
+        logger.info(f"[Studio] Job {job_id} completed")
+
+    except Exception as e:
+        logger.error(f"[Studio] Job {job_id} failed: {e}", exc_info=True)
+        memory_manager.cleanup()
+        mark_job_failed(job_id, str(e))
+        _fail_job_record(db, job_id, str(e), started_at)
+    finally:
+        db.close()
+
+
+def _persist_job(db, job_id, user_id, product_details, started_at,
+                 original_urls, final_urls, original_paths, final_paths,
+                 sd_prompt, background_mode):
+    """Write terminal success state to ai_processing_jobs."""
+    try:
+        job_row = AIProcessingJob(
+            id=uuid.UUID(job_id) if len(job_id) == 36 else uuid.uuid4(),
+            job_type="PRODUCT_STUDIO",
+            model_provider="local",
+            status="COMPLETED",
+            input_data={
+                "product_details": product_details,
+                "background_mode": background_mode,
+                "original_urls": original_urls,
+            },
+            output_data={
+                "final_urls": final_urls,
+                "final_paths": final_paths,
+                "prompt_used": sd_prompt,
+            },
+            started_at=started_at,
+            completed_at=datetime.now(timezone.utc),
+        )
+        db.add(job_row)
+        db.commit()
+    except Exception as e:
+        logger.warning(f"[Studio] Could not persist job record: {e}")
+        db.rollback()
+
+
+def _fail_job_record(db, job_id, error_msg, started_at):
+    try:
+        job_row = AIProcessingJob(
+            id=uuid.UUID(job_id) if len(job_id) == 36 else uuid.uuid4(),
+            job_type="PRODUCT_STUDIO",
+            model_provider="local",
+            status="FAILED",
+            input_data={},
+            error_message=error_msg,
+            started_at=started_at,
+            completed_at=datetime.now(timezone.utc),
+        )
+        db.add(job_row)
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
+def _run_studio_regenerate_job(
+    new_job_id: str,
+    orig_job_id: str,
+    user_id: str,
+    background_mode: str,
+    custom_prompt: str,
+    base_url: str,
+):
+    """
+    Runs the studio pipeline starting from GENERATING_BACKGROUND using cached RMBG artifacts.
+    """
+    from app.database.connection import SessionLocal
+    from app.services.ai.model_manager import model_manager, ModelKey
+    from app.services.ai.gpu_lock import gpu_lock
+    from app.services.ai.image_compositor import split_cutout, clean_white, composite
+    from app.services.ai.background_modes import BackgroundMode, get_mode, build_prompt
+    from app.services.ai.artifact_cache import get_artifacts
+    from app.services.ai.upscaler import upscale_image
+
+    db = SessionLocal()
+    started_at = datetime.now(timezone.utc)
+
+    try:
+        update_job(new_job_id, JobStatus.GENERATING_BACKGROUND, progress=50, message="Retrieving cached artifacts...")
+        
+        mode = BackgroundMode(background_mode)
+        mode_config = get_mode(mode)
+        
+        artifacts = get_artifacts(orig_job_id)
+        if not artifacts:
+            # Fallback if cache is cleared (in a full implementation, we'd fetch the transparent PNGs from Supabase)
+            raise RuntimeError("Cache miss! The artifacts have been cleared from memory.")
+            
+        transparent_bytes_list = artifacts["transparent_bytes_list"]
+        sd_prompt = artifacts["sd_prompt"]
+        sd_negative = artifacts["sd_negative"]
+        product_details = artifacts["product_details"]
+        original_urls = artifacts["original_urls"]
+        storage_paths = artifacts["storage_paths"]
+        
+        final_urls = []
+        final_paths = []
+        
+        for i, transparent_bytes in enumerate(transparent_bytes_list):
+            logger.info(f"[Studio Regen {new_job_id}] Processing image {i+1}/{len(transparent_bytes_list)}")
+            
+            update_job(
+                new_job_id, JobStatus.GENERATING_BACKGROUND,
+                progress=55 + int(25 * i / len(transparent_bytes_list)),
+                message=f"Generating background ({i+1}/{len(transparent_bytes_list)})...",
+            )
+
+            from PIL import Image
+            import io as _io
+
+            pil_cutout = Image.open(_io.BytesIO(transparent_bytes)).convert("RGBA")
+            _, mask = split_cutout(transparent_bytes)
+
+            if mode == BackgroundMode.CLEAN_WHITE or not mode_config.uses_diffusion:
+                final_bytes = clean_white(pil_cutout, mask, shadow=True, light_dir=mode_config.light_dir)
+                final_mime = "image/jpeg"
+                final_image = Image.open(_io.BytesIO(final_bytes)).convert("RGB")
+            else:
+                from app.services.ai.background_generator import generate_diffusion_background
+                full_prompt = build_prompt(mode, sd_prompt, custom_prompt)
+                try:
+                    with gpu_lock(f"backend-SD-{new_job_id}"):
+                        with model_manager.using(ModelKey.SD_INPAINT):
+                            bg_plate = generate_diffusion_background(
+                                pil_cutout, mask, prompt=full_prompt, negative_prompt=mode_config.negative_prompt
+                            )
+                    final_image = composite(bg_plate, pil_cutout, mask, shadow=True, light_dir=mode_config.light_dir)
+                except Exception as e:
+                    logger.error(f"[Studio Regen] SD generation failed: {e}. Degrading to CLEAN_WHITE.")
+                    final_bytes = clean_white(pil_cutout, mask, shadow=True, light_dir=mode_config.light_dir)
+                    final_image = Image.open(_io.BytesIO(final_bytes)).convert("RGB")
+                    final_mime = "image/jpeg"
+
+            # 3. Upscale (if enabled)
+            update_job(new_job_id, JobStatus.UPSCALING, progress=85, message="Enhancing resolution...")
+            final_image = upscale_image(final_image, scale=2)
+            
+            buf = _io.BytesIO()
+            final_image.save(buf, format="JPEG", quality=95)
+            final_bytes = buf.getvalue()
+            final_mime = "image/jpeg"
+
+            update_job(new_job_id, JobStatus.COMPOSITING_PRODUCT,
+                       progress=88,
+                       message="Saving product...")
+
+            final_filename = f"final_{i+1}_{new_job_id}.jpg"
+            final_path, final_url = save_image(
+                user_id, new_job_id, final_bytes, final_filename,
+                subfolder="final", content_type=final_mime, base_url=base_url,
+            )
+            final_urls.append(final_url)
+            final_paths.append(final_path)
+
+        update_job(new_job_id, JobStatus.SAVING, progress=95, message="Saving results...")
+
+        _persist_job(
+            db=db,
+            job_id=new_job_id,
+            user_id=user_id,
+            product_details=product_details,
+            started_at=started_at,
+            original_urls=original_urls,
+            final_urls=final_urls,
+            original_paths=storage_paths,
+            final_paths=final_paths,
+            sd_prompt=sd_prompt,
+            background_mode=background_mode,
+        )
+
+        result = {
+            "original_urls": original_urls,
+            "enhanced_urls": final_urls,
+            "final_paths": final_paths,
+            "prompt_used": sd_prompt,
+            "background_mode": background_mode,
+        }
+        update_job(new_job_id, JobStatus.COMPLETED, progress=100, message="Complete!", result=result)
+        logger.info(f"[Studio Regen] Job {new_job_id} completed")
+
+    except Exception as e:
+        logger.error(f"[Studio Regen] Job {new_job_id} failed: {e}", exc_info=True)
+        mark_job_failed(new_job_id, str(e))
+        _fail_job_record(db, new_job_id, str(e), started_at)
+    finally:
+        db.close()
+
+
+
+# ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@router.post("/process", response_model=StudioProcessResponse)
+async def studio_process(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    images: List[UploadFile] = File(...),
+    product_name: str = Form(...),
+    description: Optional[str] = Form(""),
+    material: Optional[str] = Form(""),
+    color: Optional[str] = Form(""),
+    craft_type: Optional[str] = Form(""),
+    style: Optional[str] = Form(""),
+    background_mode: Optional[str] = Form("CLEAN_WHITE"),
+    custom_prompt: Optional[str] = Form(""),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Start an AI studio processing job."""
+    user_id = str(current_user.id)
+    base_url = str(request.base_url).rstrip("/")
+
+    if not images or len(images) == 0:
+        raise HTTPException(status_code=400, detail="At least one image is required.")
+    if len(images) > MAX_IMAGES:
+        raise HTTPException(status_code=400, detail=f"Maximum {MAX_IMAGES} images allowed.")
+
+    # Validate mode
+    try:
+        BackgroundMode(background_mode)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid background_mode: {background_mode}")
+
+    image_data_list = []
+    original_urls = []
+    storage_paths = []
+
+    job_id = create_job(user_id=user_id)
+
+    for idx, img_file in enumerate(images):
+        content_type = img_file.content_type or "application/octet-stream"
+        img_bytes = await img_file.read()
+        error = validate_image(content_type, len(img_bytes), img_file.filename or f"image_{idx}")
+        if error:
+            raise HTTPException(status_code=400, detail=error)
+
+        filename = f"original_{idx+1}.{_ext(content_type)}"
+        path, url = save_image(
+            user_id, job_id, img_bytes, filename,
+            subfolder="original", content_type=content_type, base_url=base_url,
+        )
+        original_urls.append(url)
+        storage_paths.append(path)
+        image_data_list.append((img_bytes, content_type))
+
+    product_details = {
+        "name": product_name,
+        "description": description,
+        "material": material,
+        "color": color,
+        "craft": craft_type,
+        "style": style,
+        "background_mode": background_mode,
+    }
+
+    background_tasks.add_task(
+        _run_studio_job,
+        job_id, user_id, image_data_list, original_urls, storage_paths,
+        product_details, background_mode or "CLEAN_WHITE", custom_prompt or "",
+        base_url, "",
+    )
+
+    return StudioProcessResponse(
+        success=True,
+        job_id=job_id,
+        status="UPLOADING",
+        message="Studio processing started",
+    )
+
+
+@router.get("/status/{job_id}", response_model=StudioJobStatusResponse)
+async def studio_status(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Poll studio job status. Enforces ownership — users can only see their own jobs."""
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # Ownership check — missing from the original ai.py
+    if job.user_id and job.user_id != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    return StudioJobStatusResponse(
+        success=True,
+        job_id=job.id,
+        status=job.status,
+        progress=job.progress,
+        message=job.message,
+        result=job.result,
+        error=job.error,
+    )
+
+
+@router.post("/regenerate", response_model=StudioProcessResponse)
+async def studio_regenerate(
+    payload: StudioRegenerateRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Regenerate background using cached RMBG artifacts.
+    RMBG and LLM analysis are skipped; goes straight to GENERATING_BACKGROUND.
+    """
+    orig_job = get_job(payload.job_id)
+    if not orig_job:
+        raise HTTPException(status_code=404, detail="Original job not found")
+    if orig_job.user_id and orig_job.user_id != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # We create a NEW job for the regeneration so we don't overwrite the original's history immediately
+    new_job_id = create_job(user_id=str(current_user.id))
+    base_url = str(request.base_url).rstrip("/")
+    
+    background_tasks.add_task(
+        _run_studio_regenerate_job,
+        new_job_id, payload.job_id, str(current_user.id),
+        payload.background_mode, payload.custom_prompt or "",
+        base_url
+    )
+
+    return StudioProcessResponse(
+        success=True,
+        job_id=new_job_id,
+        status="GENERATING_BACKGROUND",
+        message="Regeneration started using cached artifacts",
+    )
+
+
+@router.post("/publish", response_model=StudioPublishResponse)
+async def studio_publish(
+    payload: StudioPublishRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Create a real Product row from a completed studio job.
+    Returns a real product_id that survives app restart.
+    """
+    job = get_job(payload.job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.user_id and job.user_id != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Access denied")
+    if job.status != "COMPLETED":
+        raise HTTPException(status_code=400, detail="Job is not complete — wait for COMPLETED status")
+
+    details = payload.product_details
+    ensure_artisan_profile(db, current_user)
+
+    product = Product(
+        id=uuid.uuid4(),
+        artisan_id=current_user.id,
+        name=details.name,
+        description=details.description or "",
+        short_description=details.short_description,
+        material=details.material or "",
+        craft_type=details.craft_type or "",
+        color=details.color,
+        origin="India",
+        production_time=details.production_time,
+        price=details.price or 0.0,
+        status=ProductStatus.DRAFT,
+        attributes={
+            "key_features": details.key_features,
+            "intended_use": details.intended_use,
+            "target_customer": details.target_customer,
+            "style": details.style,
+        } if any([details.key_features, details.intended_use, details.target_customer, details.style]) else None,
+    )
+    db.add(product)
+
+    inv = Inventory(
+        product_id=product.id,
+        available_quantity=details.quantity or 0,
+    )
+    db.add(inv)
+
+    # Attach images from job result
+    result = job.result or {}
+    original_urls = result.get("original_urls", [])
+    enhanced_urls = result.get("enhanced_urls", [])
+    final_paths = result.get("final_paths", [])
+
+    for i, url in enumerate(original_urls):
+        db.add(ProductImage(
+            id=uuid.uuid4(),
+            product_id=product.id,
+            user_id=current_user.id,
+            url=url,
+            original_url=url,
+            image_type=ImageType.ORIGINAL,
+            is_enhanced=False,
+            sort_order=i,
+        ))
+
+    for i, url in enumerate(enhanced_urls):
+        path = final_paths[i] if i < len(final_paths) else None
+        db.add(ProductImage(
+            id=uuid.uuid4(),
+            product_id=product.id,
+            user_id=current_user.id,
+            url=url,
+            original_url=original_urls[i] if i < len(original_urls) else None,
+            image_type=ImageType.FINAL,
+            storage_path=path,
+            is_enhanced=True,
+            is_primary=(i == 0),
+            sort_order=len(original_urls) + i,
+        ))
+
+    db.commit()
+    db.refresh(product)
+
+    return StudioPublishResponse(
+        success=True,
+        product_id=str(product.id),
+        message="Product created successfully",
+    )

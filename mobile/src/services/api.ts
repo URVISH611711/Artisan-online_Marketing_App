@@ -4,7 +4,7 @@
  * Never falls back to mock/dummy data.
  */
 import { useAuthStore } from '../store/useAuthStore';
-import { API_URL } from '../config/api';
+import { API_URL, endpoints } from '../config/api';
 
 type FetchOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -36,6 +36,11 @@ async function apiFetch<T>(endpoint: string, options: FetchOptions = {}): Promis
   });
 
   if (!res.ok) {
+    if (res.status === 401) {
+      useAuthStore.getState().logout();
+      throw new Error('Session expired. Please log in again.');
+    }
+    
     let detail = 'Something went wrong';
     try {
       const errorData = await res.json();
@@ -199,120 +204,144 @@ export async function fetchNotifications(): Promise<NotificationData[]> {
 
 export interface EnhanceOptions {
   product_name?: string;
+  name?: string;
+  description?: string;
   material?: string;
   color?: string;
   craft?: string;
+  craftType?: string;
   style?: string;
-  background_style?: string;
+  background_mode?: string;
+  custom_prompt?: string;
 }
+
+export type JobStatusType =
+  | 'UPLOADING'
+  | 'ANALYZING_PRODUCT'
+  | 'ANALYZING'
+  | 'REMOVING_BACKGROUND'
+  | 'PRODUCT_ISOLATED'
+  | 'GENERATING_BACKGROUND'
+  | 'COMPOSITING_PRODUCT'
+  | 'UPSCALING'
+  | 'SAVING'
+  | 'COMPLETED'
+  | 'FAILED';
 
 export interface JobStatusResult {
   success: boolean;
   job_id: string;
-  status: 'UPLOADING' | 'ANALYZING' | 'REMOVING_BACKGROUND' | 'CREATING_BACKGROUND' | 'COMPOSITING' | 'COMPLETED' | 'FAILED';
+  status: JobStatusType;
   progress: number;
   message: string;
   result?: {
     original_urls: string[];
     enhanced_urls: string[];
+    final_paths?: string[];
     prompt_used?: string;
+    background_mode?: string;
   };
   error?: string;
 }
 
 export interface EnhanceResult {
   success: boolean;
-  status: 'COMPLETED' | 'FAILED';
+  status: JobStatusType;
   job_id?: string;
   original_urls: string[];
   enhanced_urls: string[];
   model?: string;
   processing_time_seconds?: number;
   error_message?: string;
-  enhancements?: {
-    background_cleaned: boolean;
-    lighting_adjusted: boolean;
-    composition_optimized: boolean;
-    sharpness_improved: boolean;
-    lifestyle_created: boolean;
-  };
 }
 
 /**
- * Send product images to the backend for Gemini AI enhancement.
- * Uses XMLHttpRequest with multipart/form-data — XHR has native FormData
- * file-upload support in React Native (fetch does not in RN 0.86+).
- * The Gemini API key never leaves the server.
+ * Send product images to the backend for local AI enhancement via Studio pipeline.
  */
 export async function enhanceProductImages(
   imageUris: string[],
   options: EnhanceOptions = {}
 ): Promise<EnhanceResult> {
-  const token = useAuthStore.getState().token;
-  if (!token) throw new Error('Not authenticated');
+  return new Promise(async (resolve, reject) => {
+    try {
+      const token = useAuthStore.getState().token;
+      const xhr = new XMLHttpRequest();
+      
+      console.log(`[API] Starting upload to ${endpoints.studio.process}...`);
 
-  const formData = new FormData();
+      xhr.open('POST', endpoints.studio.process);
 
-  // Append each image as a binary file (RN-compatible object format)
-  for (const uri of imageUris) {
-    const filename = uri.split('/').pop() || 'image.jpg';
-    const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
-    const mimeType =
-      ext === 'png' ? 'image/png' :
-      ext === 'webp' ? 'image/webp' :
-      'image/jpeg';
+      const formData = new FormData();
 
-    formData.append('images', {
-      uri,
-      name: filename,
-      type: mimeType,
-    } as any);
-  }
+      // Append each image as a binary file (RN-compatible object format)
+      for (const uri of imageUris) {
+        const filename = uri.split('/').pop() || 'image.jpg';
+        const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
+        const mimeType =
+          ext === 'png' ? 'image/png' :
+          ext === 'webp' ? 'image/webp' :
+          'image/jpeg';
 
-  // Product details as form fields
-  formData.append('product_name', options.product_name || '');
-  formData.append('material', options.material || '');
-  formData.append('color', options.color || '');
-  formData.append('craft', options.craft || '');
-  formData.append('style', options.style || '');
-  formData.append('background_style', options.background_style || 'Professional Studio');
-
-  const url = `${API_URL}/ai/process`;
-
-  // Use XHR — React Native natively supports FormData file uploads via XHR.
-  // fetch() with FormData file objects throws "unsupported FormDataPart" in RN 0.86+.
-  return new Promise<EnhanceResult>((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', url);
-    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-    // Do NOT set Content-Type — XHR sets it automatically with the multipart boundary
-
-    xhr.onload = () => {
-      let data: EnhanceResult;
-      try {
-        data = JSON.parse(xhr.responseText);
-      } catch {
-        reject(new Error('Invalid JSON response from server.'));
-        return;
+        formData.append('images', {
+          uri,
+          name: filename,
+          type: mimeType,
+        } as any);
       }
 
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(data);
-      } else {
-        reject(new Error((data as any)?.detail || `Enhancement failed (HTTP ${xhr.status})`));
-      }
-    };
+      // Product details as form fields
+      const pName = options.product_name || options.name;
+      if (pName) formData.append('product_name', pName);
+      if (options.description) formData.append('description', options.description);
+      if (options.material) formData.append('material', options.material);
+      if (options.color) formData.append('color', options.color);
+      const pCraft = options.craft || options.craftType;
+      if (pCraft) formData.append('craft_type', pCraft);
+      if (options.style) formData.append('style', options.style);
+      if (options.background_mode) formData.append('background_mode', options.background_mode);
+      if (options.custom_prompt) formData.append('custom_prompt', options.custom_prompt);
 
-    xhr.onerror = () => reject(new Error('Network error — check your connection and that the server is reachable.'));
-    xhr.ontimeout = () => reject(new Error('Request timed out. Enhancement may take up to 60 seconds — please try again.'));
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 
-    xhr.timeout = 120000;
-    xhr.send(formData);
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(JSON.parse(xhr.responseText));
+        } else if (xhr.status === 401) {
+          useAuthStore.getState().logout();
+          reject(new Error('Session expired. Please log in again.'));
+        } else {
+          console.error(`[API] HTTP Error ${xhr.status}:`, xhr.responseText);
+          reject(new Error(`Enhancement request failed with status ${xhr.status}`));
+        }
+      };
+
+      xhr.onerror = (e) => {
+        console.error(`[API] Network error during upload to ${endpoints.studio.process}:`, e);
+        reject(new Error('Network error. Check your connection to the server.'));
+      };
+      xhr.send(formData);
+    } catch (e) {
+      reject(e);
+    }
   });
 }
 
-export async function pollJobStatus(jobId: string): Promise<JobStatusResult> {
-  return apiFetch<JobStatusResult>(`/ai/status/${jobId}`);
+export async function getEnhancementStatus(jobId: string): Promise<JobStatusResult> {
+  return apiFetch<JobStatusResult>(`/ai/studio/status/${jobId}`);
+}
+
+export async function regenerateBackground(jobId: string, backgroundMode?: string, customPrompt?: string) {
+  return apiFetch('/ai/studio/regenerate', {
+    method: 'POST',
+    body: { job_id: jobId, background_mode: backgroundMode, custom_prompt: customPrompt },
+  });
+}
+
+export async function publishStudioProduct(jobId: string, productDetails: any) {
+  return apiFetch('/ai/studio/publish', {
+    method: 'POST',
+    body: { job_id: jobId, product_details: productDetails },
+  });
 }
 
 export async function transcribeVoice(audioUri: string): Promise<{ success: boolean; text: string; language?: string }> {

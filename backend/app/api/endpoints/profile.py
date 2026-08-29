@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 from app.database.connection import get_db
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, ensure_artisan_profile
 from app.models.user import User, ArtisanProfile
 from app.models.product import Product
 from app.models.order import Order, OrderStatus
@@ -101,12 +101,11 @@ def update_profile(
     # Handle artisan profile updates
     artisan_updates = {k: v for k, v in update_data.items() if k in artisan_fields}
     if artisan_updates:
-        artisan = db.query(ArtisanProfile).filter(
-            ArtisanProfile.user_id == current_user.id
-        ).first()
-        if artisan:
-            for key, value in artisan_updates.items():
-                setattr(artisan, key, value)
+        # Previously this did a bare query and silently discarded the updates
+        # when no row existed — which was ALWAYS, since nothing created one.
+        artisan = ensure_artisan_profile(db, current_user)
+        for key, value in artisan_updates.items():
+            setattr(artisan, key, value)
 
     db.commit()
     db.refresh(current_user)

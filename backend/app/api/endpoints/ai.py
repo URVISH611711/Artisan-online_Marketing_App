@@ -1,4 +1,4 @@
-﻿"""
+"""
 AI endpoints for Artisan AI.
 
 POST /ai/process  -- Start processing an AI enhancement job (Async)
@@ -7,7 +7,6 @@ POST /ai/voice/transcribe -- Transcribe voice locally
 """
 import logging
 import time
-import asyncio
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request, BackgroundTasks
@@ -35,7 +34,7 @@ def _ext_for_mime(mime: str) -> str:
         return "webp"
     return "jpg"
 
-async def process_job_background(
+def process_job_background(
     job_id: str, 
     user_id: str, 
     image_data_list: List[tuple],
@@ -121,7 +120,7 @@ async def start_processing(
 ):
     """Start asynchronous AI processing for product images."""
     user_id = str(current_user.id)
-    job_id = create_job()
+    job_id = create_job(user_id=user_id)
     base_url = str(request.base_url).rstrip("/")
 
     # Validate image count
@@ -199,10 +198,16 @@ async def process_voice(
     current_user: User = Depends(get_current_user)
 ):
     """Transcribe voice locally using faster-whisper."""
+    from app.services.ai.gpu_lock import gpu_lock
+    from app.services.ai.model_manager import model_manager, ModelKey
+    
     audio_bytes = await audio.read()
     
     try:
-        result = transcribe_audio(audio_bytes)
+        with gpu_lock("backend-WHISPER"):
+            with model_manager.using(ModelKey.WHISPER):
+                result = transcribe_audio(audio_bytes)
+                
         return {
             "success": True,
             "text": result["text"],

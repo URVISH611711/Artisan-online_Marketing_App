@@ -1,7 +1,50 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ProductDraft, ProductCreationStep } from '../types';
+
+export type ProductCreationStep =
+  | 'camera'
+  | 'voice'
+  | 'product_details'
+  | 'background_mode'
+  | 'ai_studio'
+  | 'review'
+  | 'success';
+
+export interface ProductDraft {
+  id?: string;
+  step: ProductCreationStep;
+
+  // Captured images
+  imageUris?: string[];
+
+  // User-entered product details
+  name?: string;
+  description?: string;
+  material?: string;
+  craftType?: string;
+  color?: string;
+  price?: number;
+  quantity?: number;
+  keyFeatures?: string;
+  intendedUse?: string;
+  targetCustomer?: string;
+  style?: string;
+
+  // Background selection
+  backgroundMode?: string;
+  customPrompt?: string;
+
+  // AI Studio results
+  jobId?: string;
+  enhancedImageUrls?: string[];
+
+  // Published product
+  productId?: string;
+
+  // Legacy field kept for backward compat with any existing persisted drafts
+  image?: string;
+}
 
 interface DraftState {
   draft: ProductDraft | null;

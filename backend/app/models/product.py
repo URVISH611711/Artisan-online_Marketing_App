@@ -8,6 +8,16 @@ import enum
 from app.models.base import Base, TimestampMixin, UUIDMixin, SoftDeleteMixin
 from app.models.user import AppLanguage
 
+
+class ImageType(str, enum.Enum):
+    ORIGINAL = "original"
+    TRANSPARENT = "transparent"
+    MASK = "mask"
+    FINAL = "final"
+    HERO = "hero"
+    ALTERNATE = "alternate"
+    LIFESTYLE = "lifestyle"
+
 class Category(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "categories"
 
@@ -80,6 +90,16 @@ class ProductImage(Base, UUIDMixin, TimestampMixin):
     original_url: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
     is_enhanced: Mapped[bool] = mapped_column(Boolean, default=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Phase 2 additions — non-breaking ALTER TABLE
+    image_type: Mapped[Optional[ImageType]] = mapped_column(
+        Enum(ImageType, name="imagetype", values_callable=lambda obj: [e.value for e in obj]), nullable=True, default=ImageType.ORIGINAL
+    )
+    storage_path: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=False)
 
     product: Mapped["Product"] = relationship("Product", back_populates="images")
 

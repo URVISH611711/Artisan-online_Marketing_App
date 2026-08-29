@@ -1,4 +1,4 @@
-﻿"""
+"""
 Local Background Removal & Image Enhancement using BRIA AI RMBG-1.4.
 
 Uses HuggingFace Transformers pipeline.
@@ -23,11 +23,13 @@ def get_rmbg_pipeline():
     if _pipe is None:
         logger.info("[RMBG-1.4] Loading local model briaai/RMBG-1.4...")
         from transformers import pipeline
+        import torch
+        device = 0 if torch.cuda.is_available() else -1
         _pipe = pipeline(
             "image-segmentation",
             model="briaai/RMBG-1.4",
             trust_remote_code=True,
-            device_map="auto" # use GPU if available
+            device=device
         )
         logger.info("[RMBG-1.4] Local model loaded successfully.")
     return _pipe

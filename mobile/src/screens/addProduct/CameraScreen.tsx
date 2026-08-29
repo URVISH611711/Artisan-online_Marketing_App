@@ -84,7 +84,7 @@ export const CameraScreen: React.FC<Props> = ({ navigation }) => {
     }
     createDraft();
     updateDraft({ images: selectedImages, image: selectedImages[0], step: 'ai_studio' });
-    navigation.navigate('AIStudio', { imageUris: selectedImages });
+    navigation.navigate('ProductDetails', { imageUris: selectedImages });
   };
 
   // ── Permission not yet determined ──────────────────────────────

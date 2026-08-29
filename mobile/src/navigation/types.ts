@@ -15,16 +15,27 @@ export type AuthStackParamList = {
   Registration: undefined;
 };
 
-// Add Product stack
+// Add Product stack — 5-step flow
+// Camera → ProductDetails → BackgroundMode → AIStudio → Review → Success
 export type AddProductStackParamList = {
   Camera: undefined;
-  AIStudio: { imageUris: string[] };  // supports 1–5 images
-  Voice: undefined;
-  Extraction: undefined;
-  Processing: undefined;
-  Catalog: undefined;
-  Pricing: undefined;
-  Review: undefined;
+  Voice: undefined;                                    // optional voice input step
+  ProductDetails: { imageUris: string[] };             // user enters product info
+  BackgroundMode: {                                    // pick background style
+    imageUris: string[];
+    productDetails: Record<string, string>;
+  };
+  AIStudio: {                                          // live processing + result
+    imageUris: string[];
+    productDetails: Record<string, string>;
+    backgroundMode: string;
+    customPrompt?: string;
+  };
+  Review: {                                           // review before publish
+    jobId: string;
+    enhancedUrls: string[];
+    productDetails: Record<string, string>;
+  };
   Success: { productId: string };
 };
 

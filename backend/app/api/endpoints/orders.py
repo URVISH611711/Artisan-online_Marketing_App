@@ -5,6 +5,7 @@ from typing import List
 
 from app.database.connection import get_db
 from app.api.deps import get_current_user
+from app.core.enums import coerce_enum
 from app.models.user import User
 from app.models.order import Order, OrderStatus
 from app.schemas.order import OrderResponse, OrderStatusUpdate
@@ -68,9 +69,8 @@ def update_order_status(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    try:
-        new_status = OrderStatus(payload.status.upper())
-    except ValueError:
+    new_status = coerce_enum(OrderStatus, payload.status)
+    if new_status is None:
         raise HTTPException(status_code=400, detail=f"Invalid status: {payload.status}")
 
     order.status = new_status
