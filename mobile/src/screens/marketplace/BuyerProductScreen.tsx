@@ -1,22 +1,41 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { Header } from '../../components/layout/Header';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { colors } from '../../theme/colors';
 import { layout } from '../../theme/spacing';
-import { mockProducts } from '../../services/mock/mockData';
+import { fetchProduct, ProductData } from '../../services/api';
 import { Ionicons } from '@expo/vector-icons';
 
 export const BuyerProductScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
-  const product = mockProducts.find((p) => p.id === route.params.productId) || mockProducts[0];
+  const [product, setProduct] = useState<ProductData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchProduct(route.params.productId)
+      .then(setProduct)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [route.params.productId]);
+
+  if (loading || !product) {
+    return (
+      <ScreenWrapper padded={false}>
+        <Header onBack={() => navigation.goBack()} />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          {loading ? <ActivityIndicator size="large" color={colors.primary} /> : <Text style={{ color: colors.textSecondary }}>Product not found</Text>}
+        </View>
+      </ScreenWrapper>
+    );
+  }
 
   return (
     <ScreenWrapper padded={false}>
       <Header onBack={() => navigation.goBack()} rightIcon="heart-outline" />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Image source={{ uri: product.images[0]?.url }} style={styles.image} resizeMode="cover" />
+        <Image source={{ uri: product.images?.[0]?.url || 'https://via.placeholder.com/400' }} style={styles.image} resizeMode="cover" />
         <View style={styles.content}>
           <Text style={styles.name}>{product.name}</Text>
           <Text style={styles.price}>₹{product.price.toLocaleString('en-IN')}</Text>
@@ -33,15 +52,15 @@ export const BuyerProductScreen: React.FC<{ navigation: any; route: any }> = ({ 
 
           <Card variant="ai" padding="md" style={styles.bulkCard}>
             <Text style={styles.bulkTitle}>✅ Available for bulk orders</Text>
-            <Text style={styles.bulkSub}>Minimum order: 10 units · Production: {product.productionTime || '10 days'}</Text>
+            <Text style={styles.bulkSub}>Minimum order: 10 units · Production: {product.production_time || '10 days'}</Text>
           </Card>
 
-          <TouchableOpacity style={styles.artisanCard} onPress={() => navigation.navigate('ArtisanProfile', { artisanId: product.artisanId })}>
+          <TouchableOpacity style={styles.artisanCard} onPress={() => navigation.navigate('ArtisanProfile', { artisanId: product.artisan_id })}>
             <View style={styles.artisanAvatar}>
               <Ionicons name="person" size={18} color={colors.textSecondary} />
             </View>
             <View>
-              <Text style={styles.artisanName}>Ramesh Handicrafts</Text>
+              <Text style={styles.artisanName}>View Artisan</Text>
               <Text style={styles.artisanLocation}>{product.origin}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} style={{ marginLeft: 'auto' }} />

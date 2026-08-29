@@ -12,6 +12,7 @@ CREATE TABLE users (
 	phone VARCHAR(20), 
 	hashed_password VARCHAR(255), 
 	name VARCHAR(255) NOT NULL, 
+	address VARCHAR(255), 
 	role userrole NOT NULL, 
 	preferred_language applanguage NOT NULL, 
 	voice_language applanguage NOT NULL, 
@@ -25,9 +26,9 @@ CREATE TABLE users (
 )
 
  ;
-CREATE UNIQUE INDEX ix_users_phone ON users (phone) ;
 CREATE INDEX ix_users_role ON users (role) ;
 CREATE UNIQUE INDEX ix_users_email ON users (email) ;
+CREATE UNIQUE INDEX ix_users_phone ON users (phone) ;
 
 CREATE TABLE categories (
 	parent_id UUID, 
@@ -137,10 +138,10 @@ CREATE TABLE orders (
 )
 
  ;
+CREATE INDEX ix_orders_status ON orders (status) ;
 CREATE UNIQUE INDEX ix_orders_order_number ON orders (order_number) ;
 CREATE INDEX ix_orders_artisan_id ON orders (artisan_id) ;
 CREATE INDEX ix_orders_buyer_id ON orders (buyer_id) ;
-CREATE INDEX ix_orders_status ON orders (status) ;
 
 CREATE TABLE voice_recordings (
 	user_id UUID NOT NULL, 
@@ -174,8 +175,8 @@ CREATE TABLE notifications (
 )
 
  ;
-CREATE INDEX ix_notifications_is_read ON notifications (is_read) ;
 CREATE INDEX ix_notifications_user_id ON notifications (user_id) ;
+CREATE INDEX ix_notifications_is_read ON notifications (is_read) ;
 
 CREATE TABLE ai_conversations (
 	user_id UUID NOT NULL, 
@@ -238,14 +239,14 @@ CREATE TABLE products (
 )
 
  ;
-CREATE INDEX ix_products_material ON products (material) ;
 CREATE UNIQUE INDEX ix_products_sku ON products (sku) ;
+CREATE INDEX ix_products_name ON products (name) ;
 CREATE INDEX ix_products_craft_type ON products (craft_type) ;
 CREATE INDEX ix_products_price ON products (price) ;
-CREATE INDEX ix_products_artisan_id ON products (artisan_id) ;
-CREATE INDEX ix_products_status ON products (status) ;
-CREATE INDEX ix_products_name ON products (name) ;
 CREATE INDEX ix_products_category_id ON products (category_id) ;
+CREATE INDEX ix_products_status ON products (status) ;
+CREATE INDEX ix_products_material ON products (material) ;
+CREATE INDEX ix_products_artisan_id ON products (artisan_id) ;
 
 CREATE TABLE order_timeline (
 	order_id UUID NOT NULL, 
@@ -344,8 +345,8 @@ CREATE TABLE product_translations (
 )
 
  ;
-CREATE INDEX ix_product_translations_language_code ON product_translations (language_code) ;
 CREATE INDEX ix_product_translations_product_id ON product_translations (product_id) ;
+CREATE INDEX ix_product_translations_language_code ON product_translations (language_code) ;
 
 CREATE TABLE product_keywords (
 	id UUID NOT NULL, 
@@ -359,8 +360,8 @@ CREATE TABLE product_keywords (
 )
 
  ;
-CREATE INDEX ix_product_keywords_keyword ON product_keywords (keyword) ;
 CREATE INDEX ix_product_keywords_product_id ON product_keywords (product_id) ;
+CREATE INDEX ix_product_keywords_keyword ON product_keywords (keyword) ;
 
 CREATE TABLE inventory (
 	product_id UUID NOT NULL, 
@@ -428,9 +429,9 @@ CREATE TABLE bulk_order_requests (
 )
 
  ;
+CREATE INDEX ix_bulk_order_requests_status ON bulk_order_requests (status) ;
 CREATE INDEX ix_bulk_order_requests_buyer_id ON bulk_order_requests (buyer_id) ;
 CREATE INDEX ix_bulk_order_requests_product_id ON bulk_order_requests (product_id) ;
-CREATE INDEX ix_bulk_order_requests_status ON bulk_order_requests (status) ;
 
 CREATE TABLE price_predictions (
 	product_id UUID NOT NULL, 

@@ -58,7 +58,7 @@ export const OnboardingScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleGetStarted = () => {
     setOnboarded(true);
-    navigation.replace('Login');
+    navigation.replace('Welcome');
   };
 
   const isLast = currentIndex === SLIDES.length - 1;

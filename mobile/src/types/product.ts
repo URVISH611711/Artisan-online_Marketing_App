@@ -41,9 +41,23 @@ export interface ProductTranslation {
 
 export interface ProductDraft {
   id?: string;
+  // Single image (legacy) — kept for backward compat
   image?: string;
   enhancedImage?: string;
   originalImage?: string;
+  // Multi-image support
+  images?: string[];          // original local URIs
+  enhancedImages?: string[];  // server-returned enhanced image URLs
+  originalUrls?: string[];    // server-stored original image URLs
+  enhancementJobId?: string;  // session_id from backend
+  enhancementModel?: string;  // e.g. 'gemini-2.0-flash-exp'
+  enhancements?: {
+    background_cleaned?: boolean;
+    lighting_adjusted?: boolean;
+    composition_optimized?: boolean;
+    sharpness_improved?: boolean;
+    lifestyle_created?: boolean;
+  };
   transcript?: string;
   transcriptLanguage?: string;
   name?: string;

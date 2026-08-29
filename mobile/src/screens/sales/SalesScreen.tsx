@@ -1,13 +1,14 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SalesStackParamList } from '../../navigation/types';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { Card } from '../../components/ui/Card';
 import { colors } from '../../theme/colors';
 import { layout } from '../../theme/spacing';
-import { mockSalesData, mockInsights } from '../../services/mock/mockData';
+import { fetchDashboard, DashboardData } from '../../services/api';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 
 type Props = { navigation: NativeStackNavigationProp<SalesStackParamList, 'SalesMain'> };
 
@@ -36,6 +37,21 @@ const chartStyles = StyleSheet.create({
 });
 
 export const SalesScreen: React.FC<Props> = ({ navigation }) => {
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchDashboard()
+        .then(setDashboard)
+        .catch(console.error)
+        .finally(() => setLoading(false));
+    }, [])
+  );
+
+  const totalSales = dashboard?.total_sales ?? 0;
+  const totalOrders = dashboard?.orders_count ?? 0;
+  const avgOrder = totalOrders > 0 ? Math.round(totalSales / totalOrders) : 0;
   return (
     <ScreenWrapper padded={false}>
       {/* Header */}
@@ -53,70 +69,42 @@ export const SalesScreen: React.FC<Props> = ({ navigation }) => {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* Revenue card */}
-        <Card padding="lg" style={styles.revenueCard}>
-          <Text style={styles.revLabel}>Sales This Month</Text>
-          <View style={styles.revRow}>
-            <Text style={styles.revAmount}>₹{mockSalesData.totalSales.toLocaleString('en-IN')}</Text>
-            <View style={styles.growthBadge}>
-              <Ionicons name="trending-up" size={14} color={colors.success} />
-              <Text style={styles.growthText}>{mockSalesData.growthPercent}% from last month</Text>
-            </View>
+        {loading ? (
+          <View style={{ paddingTop: 60, alignItems: 'center' }}>
+            <ActivityIndicator size="large" color={colors.primary} />
           </View>
-          <MiniChart data={mockSalesData.weeklyData} />
-          <View style={styles.weekRow}>
-            {mockSalesData.weeklyData.map((d) => (
-              <Text key={d.week} style={styles.weekLabel}>{d.week}</Text>
-            ))}
-          </View>
-        </Card>
+        ) : (
+          <>
+            {/* Revenue card */}
+            <Card padding="lg" style={styles.revenueCard}>
+              <Text style={styles.revLabel}>Sales This Month</Text>
+              <View style={styles.revRow}>
+                <Text style={styles.revAmount}>₹{totalSales.toLocaleString('en-IN')}</Text>
+              </View>
+            </Card>
 
-        {/* Stats row */}
-        <View style={styles.statsRow}>
-          <Card padding="md" style={styles.statCard}>
-            <Text style={styles.statLabel}>Orders</Text>
-            <View style={styles.statValueRow}>
-              <Text style={styles.statValue}>{mockSalesData.totalOrders}</Text>
-              <Ionicons name="arrow-up" size={18} color={colors.success} />
+            {/* Stats row */}
+            <View style={styles.statsRow}>
+              <Card padding="md" style={styles.statCard}>
+                <Text style={styles.statLabel}>Orders</Text>
+                <Text style={styles.statValue}>{totalOrders}</Text>
+              </Card>
+              <Card padding="md" style={styles.statCard}>
+                <Text style={styles.statLabel}>Avg. Order</Text>
+                <Text style={styles.statValue}>₹{avgOrder.toLocaleString('en-IN')}</Text>
+              </Card>
             </View>
-          </Card>
-          <Card padding="md" style={styles.statCard}>
-            <Text style={styles.statLabel}>Avg. Order</Text>
-            <Text style={styles.statValue}>₹{mockSalesData.averageOrder.toLocaleString('en-IN')}</Text>
-          </Card>
-        </View>
 
-        {/* Buyer interest */}
-        <Card padding="md" style={styles.buyerCard}>
-          <View style={styles.buyerInner}>
-            <View style={styles.buyerIconBox}>
-              <Ionicons name="person-add-outline" size={22} color={colors.secondary} />
-            </View>
-            <View style={styles.buyerTextBox}>
-              <Text style={styles.buyerTitle}>Buyer Interest</Text>
-              <Text style={styles.buyerSub}>
-                <Ionicons name="trending-up" size={12} color={colors.success} />
-                {' '}{mockSalesData.buyerInterest} new inquiries this week
-              </Text>
-            </View>
-            <TouchableOpacity onPress={() => navigation.navigate('Insights')}>
-              <Text style={styles.viewLink}>View</Text>
-            </TouchableOpacity>
-          </View>
-        </Card>
-
-        {/* Top products */}
-        <Text style={styles.sectionTitle}>Top Products</Text>
-        <Card padding="md">
-          {mockSalesData.topProducts.map((p, i) => (
-            <View key={p.name} style={[styles.topRow, i < mockSalesData.topProducts.length - 1 && styles.topRowBorder]}>
-              <Text style={styles.topRank}>{i + 1}</Text>
-              <View style={styles.topThumb} />
-              <Text style={styles.topName}>{p.name}</Text>
-              <Text style={styles.topRevenue}>₹{p.revenue.toLocaleString('en-IN')}</Text>
-            </View>
-          ))}
-        </Card>
+            {/* No data message */}
+            {totalSales === 0 && (
+              <Card padding="md" style={{ marginBottom: 16 }}>
+                <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center' }}>
+                  No sales data yet. Sales will appear here when you receive orders.
+                </Text>
+              </Card>
+            )}
+          </>
+        )}
 
         {/* AI Insights link */}
         <TouchableOpacity style={styles.insightsLink} onPress={() => navigation.navigate('Insights')}>

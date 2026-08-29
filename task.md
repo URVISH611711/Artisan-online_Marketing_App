@@ -1,0 +1,17 @@
+- `[x]` Backend updates
+  - `[x]` Add `address` to `User` model
+  - `[x]` Create `UserSignUp` schema
+  - `[x]` Update `/auth/login` endpoint
+  - `[x]` Create `/auth/register` endpoint
+  - `[x]` Update `/auth/verify-otp` endpoint to handle registration
+- `[x]` Frontend updates
+  - `[x]` Add `Welcome` and `SignUp` to navigation types
+  - `[x]` Add screens to `AuthNavigator.tsx`
+  - `[x]` Create `WelcomeScreen.tsx`
+  - `[x]` Create `SignUpScreen.tsx`
+  - `[x]` Update `LoginScreen.tsx` (remove auto-create logic, handle 404)
+  - `[x]` Update `OTPScreen.tsx`
+- `[ ]` Verification
+  - `[ ]` Check backend API
+  - `[ ]` Test Login flow
+  - `[ ]` Test Sign Up flow

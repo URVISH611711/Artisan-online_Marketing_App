@@ -12,8 +12,15 @@ class UserBase(BaseModel):
     preferred_language: AppLanguage = AppLanguage.EN
     voice_language: AppLanguage = AppLanguage.EN
 
+class UserSignUp(BaseModel):
+    name: str = Field(..., max_length=255)
+    email: EmailStr
+    phone: str = Field(..., max_length=20)
+    password: str = Field(..., min_length=8, max_length=50)
+    address: str = Field(..., max_length=255)
+
 class UserCreate(UserBase):
-    password: str = Field(..., min_length=8)
+    password: str = Field(..., min_length=8, max_length=50)
 
 class UserResponse(UserBase):
     id: UUID

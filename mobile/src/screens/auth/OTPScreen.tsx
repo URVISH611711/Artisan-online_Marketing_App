@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -63,11 +64,18 @@ export const OTPScreen: React.FC<Props> = ({ navigation, route }) => {
         body: JSON.stringify({ email, otp: code }),
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        const text = await response.text();
+        data = text ? JSON.parse(text) : {};
+      } catch (e) {
+        data = { detail: 'An unexpected server error occurred.' };
+      }
+      
       setLoading(false);
 
       if (!response.ok) {
-        alert(data.detail || 'Invalid OTP');
+        Alert.alert('Error', data.detail || 'Invalid OTP');
         setOtp(['', '', '', '']);
         inputRefs.current[0]?.focus();
         return;
@@ -79,16 +87,15 @@ export const OTPScreen: React.FC<Props> = ({ navigation, route }) => {
         email: data.user.email,
         phone: data.user.phone,
         name: data.user.name,
+        address: data.user.address,
         role: data.user.role,
         language: data.user.preferred_language,
         voiceLanguage: data.user.voice_language,
         createdAt: data.user.created_at,
       });
-
-      navigation.replace('Registration');
     } catch (err) {
       setLoading(false);
-      alert('Network error. Is the backend running?');
+      Alert.alert('Error', 'Network error. Is the backend running?');
       console.error(err);
     }
   };

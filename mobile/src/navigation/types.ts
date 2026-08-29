@@ -8,15 +8,17 @@ export type AuthStackParamList = {
   Splash: undefined;
   Language: undefined;
   Onboarding: undefined;
+  Welcome: undefined;
   Login: undefined;
-  OTP: { email: string };
+  OTP: { email: string; isSignUp?: boolean };
+  SignUp: undefined;
   Registration: undefined;
 };
 
 // Add Product stack
 export type AddProductStackParamList = {
   Camera: undefined;
-  AIStudio: { imageUri: string };
+  AIStudio: { imageUris: string[] };  // supports 1–5 images
   Voice: undefined;
   Extraction: undefined;
   Processing: undefined;

@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { ProductsStackParamList } from '../../navigation/types';
@@ -9,7 +9,7 @@ import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { colors } from '../../theme/colors';
 import { layout } from '../../theme/spacing';
-import { mockProducts } from '../../services/mock/mockData';
+import { fetchProduct, updateProduct, deleteProduct } from '../../services/api';
 
 type Props = {
   navigation: NativeStackNavigationProp<ProductsStackParamList, 'EditProduct'>;
@@ -17,11 +17,67 @@ type Props = {
 };
 
 export const EditProductScreen: React.FC<Props> = ({ navigation, route }) => {
-  const product = mockProducts.find((p) => p.id === route.params.productId) || mockProducts[0];
-  const [name, setName] = React.useState(product.name);
-  const [price, setPrice] = React.useState(String(product.price));
-  const [quantity, setQuantity] = React.useState(String(product.quantity));
-  const [description, setDescription] = React.useState(product.description);
+  const [name, setName] = useState('');
+  const [price, setPrice] = useState('');
+  const [quantity, setQuantity] = useState('0');
+  const [description, setDescription] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchProduct(route.params.productId)
+      .then((p) => {
+        setName(p.name);
+        setPrice(String(p.price));
+        setDescription(p.description);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [route.params.productId]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateProduct(route.params.productId, {
+        name,
+        price: parseFloat(price),
+        description,
+        quantity: parseInt(quantity, 10),
+      });
+      navigation.goBack();
+    } catch (err: any) {
+      Alert.alert('Error', err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    Alert.alert('Delete Product', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            await deleteProduct(route.params.productId);
+            navigation.goBack();
+          } catch (err: any) {
+            Alert.alert('Error', err.message);
+          }
+        },
+      },
+    ]);
+  };
+
+  if (loading) {
+    return (
+      <ScreenWrapper padded={false}>
+        <Header title="Edit Product" onBack={() => navigation.goBack()} />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </ScreenWrapper>
+    );
+  }
 
   return (
     <ScreenWrapper padded={false}>
@@ -31,8 +87,8 @@ export const EditProductScreen: React.FC<Props> = ({ navigation, route }) => {
         <Input label="Price (₹)" value={price} onChangeText={setPrice} keyboardType="numeric" />
         <Input label="Stock Quantity" value={quantity} onChangeText={setQuantity} keyboardType="numeric" />
         <Input label="Description" value={description} onChangeText={setDescription} multiline numberOfLines={5} style={{ height: 120, textAlignVertical: 'top' }} />
-        <Button title="Save Changes" onPress={() => navigation.goBack()} style={styles.button} />
-        <Button title="Delete Product" onPress={() => {}} variant="danger" style={{ marginTop: 10 }} />
+        <Button title={saving ? "Saving..." : "Save Changes"} onPress={handleSave} style={styles.button} disabled={saving} />
+        <Button title="Delete Product" onPress={handleDelete} variant="danger" style={{ marginTop: 10 }} />
       </ScrollView>
     </ScreenWrapper>
   );

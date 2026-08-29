@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { ProductsStackParamList } from '../../navigation/types';
@@ -10,7 +10,7 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { colors } from '../../theme/colors';
 import { layout } from '../../theme/spacing';
-import { mockProducts } from '../../services/mock/mockData';
+import { fetchProduct, ProductData } from '../../services/api';
 import { Ionicons } from '@expo/vector-icons';
 
 type Props = {
@@ -19,14 +19,45 @@ type Props = {
 };
 
 export const ProductDetailScreen: React.FC<Props> = ({ navigation, route }) => {
-  const product = mockProducts.find((p) => p.id === route.params.productId) || mockProducts[0];
+  const [product, setProduct] = useState<ProductData | null>(null);
+  const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    fetchProduct(route.params.productId)
+      .then(setProduct)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [route.params.productId]);
+
+  if (loading) {
+    return (
+      <ScreenWrapper padded={false}>
+        <Header title="Product" onBack={() => navigation.goBack()} />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </ScreenWrapper>
+    );
+  }
+
+  if (!product) {
+    return (
+      <ScreenWrapper padded={false}>
+        <Header title="Product" onBack={() => navigation.goBack()} />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={{ color: colors.textSecondary }}>Product not found</Text>
+        </View>
+      </ScreenWrapper>
+    );
+  }
+
+  const statusKey = product.status === 'PUBLISHED' ? 'live' : product.status === 'DRAFT' ? 'draft' : product.status === 'OUT_OF_STOCK' ? 'out_of_stock' : 'draft';
   const statusVariant = {
     live: 'success' as const,
     draft: 'warning' as const,
     out_of_stock: 'error' as const,
     archived: 'default' as const,
-  }[product.status];
+  }[statusKey];
 
   return (
     <ScreenWrapper padded={false}>
@@ -34,7 +65,7 @@ export const ProductDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Image */}
-        <Image source={{ uri: product.images[0]?.url }} style={styles.image} resizeMode="cover" />
+        <Image source={{ uri: product.images?.[0]?.url || 'https://via.placeholder.com/400' }} style={styles.image} resizeMode="cover" />
 
         <View style={styles.content}>
           {/* Title row */}
@@ -43,16 +74,16 @@ export const ProductDetailScreen: React.FC<Props> = ({ navigation, route }) => {
               <Text style={styles.productName}>{product.name}</Text>
               <Text style={styles.price}>₹{product.price.toLocaleString('en-IN')}</Text>
             </View>
-            <Badge label={product.status === 'live' ? 'Live' : product.status === 'draft' ? 'Draft' : 'Out of Stock'} variant={statusVariant} />
+            <Badge label={statusKey === 'live' ? 'Live' : statusKey === 'draft' ? 'Draft' : 'Out of Stock'} variant={statusVariant} />
           </View>
 
           {/* Stats */}
           <Card style={styles.statsCard} padding="md">
             <View style={styles.statsRow}>
               {[
-                { label: 'Views', value: product.views },
-                { label: 'Orders', value: product.orders },
-                { label: 'Stock', value: product.quantity },
+                { label: 'Views', value: product.views || 0 },
+                { label: 'Orders', value: product.orders || 0 },
+                { label: 'Stock', value: 0 },
               ].map(({ label, value }) => (
                 <View key={label} style={styles.stat}>
                   <Text style={styles.statValue}>{value}</Text>
@@ -65,11 +96,10 @@ export const ProductDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           {/* Details */}
           <Text style={styles.sectionTitle}>Product Details</Text>
           {[
-            { label: 'Category', value: product.category },
             { label: 'Material', value: product.material },
-            { label: 'Craft Type', value: product.craftType },
+            { label: 'Craft Type', value: product.craft_type },
             { label: 'Origin', value: product.origin },
-            { label: 'Production Time', value: product.productionTime || '—' },
+            { label: 'Production Time', value: product.production_time || '—' },
           ].map(({ label, value }) => (
             <View key={label} style={styles.detailRow}>
               <Text style={styles.detailLabel}>{label}</Text>
@@ -84,21 +114,17 @@ export const ProductDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           {/* Keywords */}
           <Text style={styles.sectionTitle}>Keywords</Text>
           <View style={styles.keywordsRow}>
-            {product.keywords.map((kw) => (
-              <View key={kw} style={styles.keyword}>
-                <Text style={styles.keywordText}>{kw}</Text>
-              </View>
-            ))}
+            <Text style={{ fontSize: 13, color: colors.textSecondary }}>—</Text>
           </View>
         </View>
       </ScrollView>
 
       {/* Actions */}
       <View style={styles.footer}>
-        {product.status === 'draft' && (
+        {statusKey === 'draft' && (
           <Button title="Publish Product" onPress={() => {}} icon="arrow-up-circle-outline" iconPosition="right" />
         )}
-        {product.status === 'live' && (
+        {statusKey === 'live' && (
           <Button title="Boost Product" onPress={() => {}} icon="trending-up-outline" iconPosition="right" />
         )}
         <Button title="Edit Product" onPress={() => navigation.navigate('EditProduct', { productId: product.id })} variant="outline" style={{ marginTop: 10 }} />

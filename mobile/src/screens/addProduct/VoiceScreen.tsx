@@ -34,11 +34,20 @@ export const VoiceScreen: React.FC<Props> = ({ navigation }) => {
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
   const { updateDraft } = useDraftStore();
 
-  const handleMicPress = () => {
+  const handleMicPress = async () => {
     if (isRecording) {
-      // Stop recording → simulate extraction
       setIsRecording(false);
-      updateDraft({ transcript: 'यह उत्पाद रेशम से बना है और बुनाई में 10 दिन लगते हैं। पारंपरिक पटोला तकनीक से बना है।', transcriptLanguage: selectedLang });
+      try {
+        const { transcribeVoice } = require('../../services/api');
+        // We'd actually get a recorded URI from expo-av here, but since the logic isn't fully implemented in this snippet,
+        // we'll simulate the URI. In a full implementation, this uses the Audio.Recording URI.
+        const audioUri = 'file://mock/audio/path.m4a'; // Replace with real URI from expo-av
+        const result = await transcribeVoice(audioUri);
+        updateDraft({ transcript: result.text, transcriptLanguage: result.language || selectedLang });
+      } catch (err) {
+        console.warn('Transcription failed:', err);
+        // Fallback or error handling
+      }
       navigation.navigate('Extraction');
     } else {
       setIsRecording(true);

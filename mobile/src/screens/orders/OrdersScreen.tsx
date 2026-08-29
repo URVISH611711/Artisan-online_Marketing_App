@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { OrdersStackParamList } from '../../navigation/types';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
@@ -8,9 +8,10 @@ import { OrderCard } from '../../components/order/OrderCard';
 import { EmptyState } from '../../components/states/StateScreens';
 import { colors } from '../../theme/colors';
 import { layout } from '../../theme/spacing';
-import { mockOrders, mockNotifications } from '../../services/mock/mockData';
-import { Order, OrderStatus } from '../../types';
+import { fetchOrders, fetchNotifications, OrderData } from '../../services/api';
+import { Order } from '../../types';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 
 type Props = { navigation: NativeStackNavigationProp<OrdersStackParamList, 'OrdersList'> };
 
@@ -18,15 +19,60 @@ type Filter = 'All' | 'New' | 'Processing' | 'Completed';
 
 export const OrdersScreen: React.FC<Props> = ({ navigation }) => {
   const [filter, setFilter] = useState<Filter>('All');
-  const unread = mockNotifications.filter((n) => !n.read).length;
-  const newCount = mockOrders.filter((o) => o.status === 'new').length;
+  const [orders, setOrders] = useState<OrderData[]>([]);
+  const [unread, setUnread] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = mockOrders.filter((o) => {
+  useFocusEffect(
+    useCallback(() => {
+      const load = async () => {
+        try {
+          const [ordersData, notifs] = await Promise.all([
+            fetchOrders(),
+            fetchNotifications(),
+          ]);
+          setOrders(ordersData);
+          setUnread(notifs.filter((n) => !n.read).length);
+        } catch (err) {
+          console.error('Orders load error:', err);
+        } finally {
+          setLoading(false);
+        }
+      };
+      load();
+    }, [])
+  );
+
+  const newCount = orders.filter((o) => o.status === 'PENDING' || o.status === 'pending').length;
+
+  const filtered = orders.filter((o) => {
+    const s = o.status.toLowerCase();
     if (filter === 'All') return true;
-    if (filter === 'New') return o.status === 'new';
-    if (filter === 'Processing') return o.status === 'processing' || o.status === 'shipped';
-    if (filter === 'Completed') return o.status === 'completed' || o.status === 'cancelled';
+    if (filter === 'New') return s === 'pending';
+    if (filter === 'Processing') return s === 'processing' || s === 'shipped' || s === 'accepted';
+    if (filter === 'Completed') return s === 'completed' || s === 'delivered' || s === 'cancelled';
     return true;
+  });
+
+  // Map to Order type for OrderCard
+  const mapToOrder = (o: OrderData): Order => ({
+    id: o.id,
+    orderId: o.order_number,
+    productId: o.items?.[0]?.id || '',
+    productName: o.items?.[0]?.product_name_snapshot || 'Order',
+    quantity: o.items?.reduce((sum, i) => sum + i.quantity, 0) || 0,
+    pricePerUnit: o.items?.[0]?.unit_price || 0,
+    totalAmount: o.total_amount,
+    status: o.status.toLowerCase() as any,
+    buyerName: '',
+    buyerVerified: false,
+    timeline: o.timeline.map((t) => ({
+      label: t.status_label,
+      status: t.status_state as any,
+      timestamp: t.created_at,
+    })),
+    createdAt: o.created_at,
+    updatedAt: o.updated_at,
   });
 
   const TABS: { label: string; filter: Filter; badge?: number }[] = [
@@ -38,7 +84,6 @@ export const OrdersScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <ScreenWrapper scrollable={false} padded={false}>
-      {/* Header with avatar + bell */}
       <View style={styles.header}>
         <View style={styles.avatarCircle}>
           <Ionicons name="person" size={18} color={colors.textSecondary} />
@@ -68,11 +113,15 @@ export const OrdersScreen: React.FC<Props> = ({ navigation }) => {
         ))}
       </View>
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : filtered.length === 0 ? (
         <EmptyState icon="receipt-outline" title="No orders yet" message="Your products are ready for buyers. Orders will appear here." />
       ) : (
         <FlatList
-          data={filtered}
+          data={filtered.map(mapToOrder)}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}

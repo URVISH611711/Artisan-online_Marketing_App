@@ -13,13 +13,16 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "fallback_secret_key_for_development_only"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200
     
-    # AI Integration
-    GEMINI_API_KEY: Optional[str] = None
-    SARVAM_API: Optional[str] = None
+    # Supabase (for storage)
+    SUPABASE_URL: Optional[str] = None
+    SUPABASE_SERVICE_KEY: Optional[str] = None
     
     # Email / SMTP
     SMTP_USERNAME: Optional[str] = None
     SMTP_PASSWORD: Optional[str] = None
+    
+    # Local uploads fallback
+    UPLOADS_DIR: str = "uploads"
     
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore")
 

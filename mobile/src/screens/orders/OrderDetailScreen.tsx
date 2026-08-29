@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { OrdersStackParamList } from '../../navigation/types';
@@ -10,7 +10,7 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { colors } from '../../theme/colors';
 import { layout } from '../../theme/spacing';
-import { mockOrders, mockBulkOrders } from '../../services/mock/mockData';
+import { fetchOrder, OrderData } from '../../services/api';
 import { Ionicons } from '@expo/vector-icons';
 
 type Props = {
@@ -19,15 +19,37 @@ type Props = {
 };
 
 export const OrderDetailScreen: React.FC<Props> = ({ navigation, route }) => {
-  const order = mockOrders.find((o) => o.id === route.params.orderId) || mockOrders[0];
+  const [order, setOrder] = useState<OrderData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchOrder(route.params.orderId)
+      .then(setOrder)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [route.params.orderId]);
+
+  if (loading || !order) {
+    return (
+      <ScreenWrapper padded={false}>
+        <Header title="Order Details" onBack={() => navigation.goBack()} />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          {loading ? <ActivityIndicator size="large" color={colors.primary} /> : <Text style={{ color: colors.textSecondary }}>Order not found</Text>}
+        </View>
+      </ScreenWrapper>
+    );
+  }
+
+  const orderStatus = order.status.toLowerCase();
 
   const statusVariant = {
-    new: 'warning' as const, accepted: 'success' as const,
+    pending: 'warning' as const, accepted: 'success' as const,
     processing: 'info' as const, shipped: 'info' as const,
-    completed: 'success' as const, cancelled: 'error' as const,
-  }[order.status];
+    completed: 'success' as const, delivered: 'success' as const,
+    cancelled: 'error' as const, rejected: 'error' as const,
+  }[orderStatus] || ('default' as const);
 
-  const isNew = order.status === 'new';
+  const isNew = orderStatus === 'pending';
 
   return (
     <ScreenWrapper padded={false}>
@@ -35,43 +57,36 @@ export const OrderDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Order ID + status */}
         <View style={styles.orderHeader}>
-          <Text style={styles.orderId}>{order.orderId}</Text>
-          <Badge label={order.status.toUpperCase()} variant={statusVariant} />
+          <Text style={styles.orderId}>{order.order_number}</Text>
+          <Badge label={orderStatus.toUpperCase()} variant={statusVariant} />
         </View>
 
         {/* Product */}
         <Card padding="md" style={styles.card}>
           <Text style={styles.cardTitle}>Product</Text>
-          <Text style={styles.productName}>{order.productName}</Text>
+          <Text style={styles.productName}>{order.items?.[0]?.product_name_snapshot || 'Order'}</Text>
           <View style={styles.row}>
             <Text style={styles.label}>Quantity</Text>
-            <Text style={styles.value}>{order.quantity}</Text>
+            <Text style={styles.value}>{order.items?.reduce((s, i) => s + i.quantity, 0) || 0}</Text>
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Price per unit</Text>
-            <Text style={styles.value}>₹{order.pricePerUnit.toLocaleString('en-IN')}</Text>
+            <Text style={styles.value}>₹{(order.items?.[0]?.unit_price || 0).toLocaleString('en-IN')}</Text>
           </View>
           <View style={[styles.row, styles.totalRow]}>
             <Text style={styles.totalLabel}>Total Amount</Text>
-            <Text style={styles.totalValue}>₹{order.totalAmount.toLocaleString('en-IN')}</Text>
+            <Text style={styles.totalValue}>₹{order.total_amount.toLocaleString('en-IN')}</Text>
           </View>
         </Card>
 
         {/* Buyer info */}
         <Card padding="md" style={styles.card}>
           <Text style={styles.cardTitle}>Buyer</Text>
-          <Text style={styles.buyerName}>{order.buyerName}</Text>
-          {order.buyerCompany && <Text style={styles.buyerCompany}>{order.buyerCompany}</Text>}
-          {order.buyerLocation && (
+          <Text style={styles.buyerName}>Buyer</Text>
+          {order.shipping_address && (
             <View style={styles.locationRow}>
               <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
-              <Text style={styles.location}>{order.buyerLocation}</Text>
-            </View>
-          )}
-          {order.buyerVerified && (
-            <View style={styles.verifiedRow}>
-              <Ionicons name="shield-checkmark" size={14} color={colors.success} />
-              <Text style={styles.verifiedText}>Verified Buyer</Text>
+              <Text style={styles.location}>{order.shipping_address}</Text>
             </View>
           )}
         </Card>
@@ -83,29 +98,22 @@ export const OrderDetailScreen: React.FC<Props> = ({ navigation, route }) => {
             <View key={i} style={styles.timelineRow}>
               <View style={[
                 styles.timelineDot,
-                step.status === 'completed' && styles.dotCompleted,
-                step.status === 'current' && styles.dotCurrent,
-                step.status === 'pending' && styles.dotPending,
+                step.status_state === 'completed' && styles.dotCompleted,
+                step.status_state === 'current' && styles.dotCurrent,
+                step.status_state === 'pending' && styles.dotPending,
               ]} />
               <Text style={[
                 styles.timelineLabel,
-                step.status === 'completed' && styles.timelineCompleted,
-                step.status === 'current' && styles.timelineCurrent,
+                step.status_state === 'completed' && styles.timelineCompleted,
+                step.status_state === 'current' && styles.timelineCurrent,
               ]}>
-                {step.label}
+                {step.status_label}
               </Text>
             </View>
           ))}
         </Card>
 
-        {/* B2B bulk order link */}
-        {mockBulkOrders.length > 0 && (
-          <TouchableOpacity style={styles.bulkLink} onPress={() => navigation.navigate('BulkOrder', { bulkOrderId: mockBulkOrders[0].id })}>
-            <Ionicons name="business-outline" size={18} color={colors.primary} />
-            <Text style={styles.bulkLinkText}>View Bulk Order Request</Text>
-            <Ionicons name="chevron-forward" size={18} color={colors.primary} />
-          </TouchableOpacity>
-        )}
+
       </ScrollView>
 
       {isNew && (

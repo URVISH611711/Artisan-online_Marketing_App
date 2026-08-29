@@ -6,7 +6,9 @@ import {
   StyleSheet,
   ViewStyle,
   TextInputProps,
+  TouchableOpacity,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../theme/colors';
 import { layout } from '../../theme/spacing';
 
@@ -25,9 +27,11 @@ export const Input: React.FC<InputProps> = ({
   suffix,
   containerStyle,
   style,
+  secureTextEntry,
   ...rest
 }) => {
   const [focused, setFocused] = React.useState(false);
+  const [isSecure, setIsSecure] = React.useState(secureTextEntry);
 
   return (
     <View style={[styles.container, containerStyle]}>
@@ -50,8 +54,21 @@ export const Input: React.FC<InputProps> = ({
           placeholderTextColor={colors.textTertiary}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
+          secureTextEntry={isSecure}
           {...rest}
         />
+        {secureTextEntry && (
+          <TouchableOpacity
+            style={styles.eyeIcon}
+            onPress={() => setIsSecure(!isSecure)}
+          >
+            <Ionicons
+              name={isSecure ? 'eye-off-outline' : 'eye-outline'}
+              size={20}
+              color={colors.textTertiary}
+            />
+          </TouchableOpacity>
+        )}
         {suffix && <View style={styles.suffixContainer}>{suffix}</View>}
       </View>
       {error && <Text style={styles.error}>{error}</Text>}
@@ -112,6 +129,12 @@ const styles = StyleSheet.create({
   },
   suffixContainer: {
     paddingRight: 12,
+  },
+  eyeIcon: {
+    paddingHorizontal: 12,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   error: {
     fontSize: 12,

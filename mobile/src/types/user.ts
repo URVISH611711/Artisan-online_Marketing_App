@@ -7,6 +7,7 @@ export interface User {
   email: string;
   phone?: string;
   name: string;
+  address?: string;
   role: UserRole;
   profileImage?: string;
   language: AppLanguage;

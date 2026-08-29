@@ -7,6 +7,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -16,13 +17,17 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Ionicons } from '@expo/vector-icons';
 import { rs, rf, rp } from '../../theme/responsive';
+import { useAuthStore } from '../../store/useAuthStore';
+import { API_URL } from '../../config/api';
 
 type Props = { navigation: NativeStackNavigationProp<AuthStackParamList, 'Login'> };
 
 export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const { setToken, setUser } = useAuthStore();
   const hPad = rp();
 
   const handleContinue = async () => {
@@ -35,25 +40,42 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
     setLoading(true);
 
     try {
-      const response = await fetch(require('../../config/api').endpoints.auth.login, {
+      const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.toLowerCase() }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: email.toLowerCase().trim(), password }),
       });
 
       const data = await response.json();
-      setLoading(false);
 
       if (!response.ok) {
-        setError(data.detail || 'Failed to send OTP');
-        return;
+        if (response.status === 404) {
+          throw new Error('Account not found. Please sign up instead.');
+        }
+        if (response.status === 401) {
+          throw new Error('Incorrect email or password.');
+        }
+        throw new Error(data.detail || 'Login failed');
       }
 
-      navigation.navigate('OTP', { email: email.toLowerCase() });
-    } catch (err) {
+      setToken(data.access_token);
+      setUser({
+        id: data.user.id,
+        email: data.user.email,
+        phone: data.user.phone,
+        name: data.user.name,
+        address: data.user.address,
+        role: data.user.role,
+        language: data.user.preferred_language,
+        voiceLanguage: data.user.voice_language,
+        createdAt: data.user.created_at,
+      });
+    } catch (err: any) {
+      Alert.alert('Login Error', err.message);
+    } finally {
       setLoading(false);
-      setError('Network error. Is the backend running?');
-      console.error(err);
     }
   };
 
@@ -76,8 +98,10 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
             </View>
           </View>
 
-          <Text style={styles.title}>Welcome to Artisan-AI</Text>
-          <Text style={styles.subtitle}>Enter your email address to get started</Text>
+          <View style={styles.header}>
+            <Text style={styles.title}>Welcome Back</Text>
+            <Text style={styles.subtitle}>Enter your email to log in to your account</Text>
+          </View>
 
           <Input
             label="Email Address"
@@ -89,15 +113,31 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
             error={error}
             containerStyle={styles.input}
           />
+          <Input
+            label="Password"
+            placeholder="Enter your password"
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+            containerStyle={styles.input}
+          />
 
           <Button
-            title="Continue"
+            title="Log In"
             onPress={handleContinue}
-            icon="arrow-forward"
-            iconPosition="right"
             style={styles.button}
             loading={loading}
           />
+
+          <View style={styles.signupRow}>
+            <Text style={styles.signupText}>Don't have an account? </Text>
+            <Text
+              style={styles.signupLink}
+              onPress={() => navigation.navigate('SignUp')}
+            >
+              Sign Up
+            </Text>
+          </View>
 
           {/* Terms */}
           <Text style={styles.terms}>
@@ -162,4 +202,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: rs(8),
   },
   link: { color: colors.primary, fontWeight: '600' },
+  signupRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: rs(24),
+  },
+  signupText: {
+    fontSize: rf(15),
+    color: colors.textSecondary,
+  },
+  signupLink: {
+    fontSize: rf(15),
+    color: colors.primary,
+    fontWeight: '600',
+  },
 });

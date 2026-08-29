@@ -6,7 +6,9 @@ import { AuthStackParamList } from './types';
 import { SplashScreen } from '../screens/auth/SplashScreen';
 import { LanguageScreen } from '../screens/auth/LanguageScreen';
 import { OnboardingScreen } from '../screens/auth/OnboardingScreen';
+import { WelcomeScreen } from '../screens/auth/WelcomeScreen';
 import { LoginScreen } from '../screens/auth/LoginScreen';
+import { SignUpScreen } from '../screens/auth/SignUpScreen';
 import { OTPScreen } from '../screens/auth/OTPScreen';
 import { RegistrationScreen } from '../screens/auth/RegistrationScreen';
 
@@ -23,7 +25,9 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen name="Splash" component={SplashScreen} />
       <Stack.Screen name="Language" component={LanguageScreen} />
       <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+      <Stack.Screen name="Welcome" component={WelcomeScreen} />
       <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="SignUp" component={SignUpScreen} />
       <Stack.Screen name="OTP" component={OTPScreen} />
       <Stack.Screen name="Registration" component={RegistrationScreen} />
     </Stack.Navigator>

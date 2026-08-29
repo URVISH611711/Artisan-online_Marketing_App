@@ -1,26 +1,85 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { Header } from '../../components/layout/Header';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { colors } from '../../theme/colors';
 import { layout } from '../../theme/spacing';
-import { mockArtisan } from '../../services/mock/mockData';
 import { useAuthStore, useLanguageStore } from '../../store/useAuthStore';
+import { fetchProfile, ProfileData } from '../../services/api';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 
 export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user, logout } = useAuthStore();
   const { language, voiceLanguage } = useLanguageStore();
-  const langNames = { en: 'English', hi: 'Hindi', gu: 'Gujarati' };
+  const langNames: Record<string, string> = { en: 'English', hi: 'Hindi', gu: 'Gujarati' };
+
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  const loadProfile = useCallback(async () => {
+    try {
+      setError(false);
+      const data = await fetchProfile();
+      setProfile(data);
+    } catch (err) {
+      console.error('Profile load error:', err);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [loadProfile])
+  );
+
+  const displayName = profile?.name || user?.name || 'Artisan';
+  const displayEmail = profile?.email || user?.email || '';
+  const displayPhone = profile?.phone || user?.phone || '';
+  const displayAddress = profile?.address || user?.address || '';
+  const displayLocation = profile?.location || displayAddress || '';
+  const displayBusiness = profile?.business_name || displayName;
+  const displayCraft = profile?.craft_type || 'Not set';
 
   const BUSINESS_FIELDS = [
-    { icon: 'storefront-outline' as const, label: 'Business Name', value: mockArtisan.businessName },
-    { icon: 'color-palette-outline' as const, label: 'Craft Type', value: mockArtisan.craftType },
-    { icon: 'location-outline' as const, label: 'Location', value: mockArtisan.location },
-    { icon: 'call-outline' as const, label: 'Contact', value: user?.phone || '+91 98765 43210' },
+    { icon: 'person-outline' as const, label: 'Full Name', value: displayName },
+    { icon: 'mail-outline' as const, label: 'Email', value: displayEmail },
+    { icon: 'call-outline' as const, label: 'Mobile', value: displayPhone || 'Not set' },
+    { icon: 'location-outline' as const, label: 'Address', value: displayAddress || 'Not set' },
+    { icon: 'storefront-outline' as const, label: 'Business Name', value: displayBusiness },
+    { icon: 'color-palette-outline' as const, label: 'Craft Type', value: displayCraft },
   ];
+
+  if (loading) {
+    return (
+      <ScreenWrapper padded={false}>
+        <Header title="Artisan Profile" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      </ScreenWrapper>
+    );
+  }
+
+  if (error) {
+    return (
+      <ScreenWrapper padded={false}>
+        <Header title="Artisan Profile" />
+        <View style={styles.loadingContainer}>
+          <Ionicons name="warning-outline" size={48} color={colors.textTertiary} />
+          <Text style={styles.loadingText}>Unable to load profile</Text>
+          <Button title="Retry" onPress={loadProfile} size="sm" />
+        </View>
+      </ScreenWrapper>
+    );
+  }
 
   return (
     <ScreenWrapper padded={false}>
@@ -38,20 +97,22 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
               </TouchableOpacity>
             </View>
           </View>
-          <Text style={styles.name}>{mockArtisan.businessName}</Text>
-          <View style={styles.locationRow}>
-            <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
-            <Text style={styles.location}>{mockArtisan.location}</Text>
-          </View>
+          <Text style={styles.name}>{displayName}</Text>
+          {displayLocation ? (
+            <View style={styles.locationRow}>
+              <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
+              <Text style={styles.location}>{displayLocation}</Text>
+            </View>
+          ) : null}
           <Button title="Edit Profile" onPress={() => {}} variant="outline" size="sm" icon="pencil-outline" style={styles.editBtn} fullWidth={false} />
         </Card>
 
         {/* Stats */}
         <Card padding="md" style={styles.statsCard}>
           {[
-            { value: mockArtisan.productsCount, label: 'Products' },
-            { value: mockArtisan.ordersCount, label: 'Orders' },
-            { value: `${mockArtisan.rating} ☆`, label: 'Rating' },
+            { value: profile?.products_count ?? 0, label: 'Products' },
+            { value: profile?.orders_count ?? 0, label: 'Orders' },
+            { value: profile?.rating ? `${profile.rating} ☆` : '0 ☆', label: 'Rating' },
           ].map(({ value, label }) => (
             <View key={label} style={styles.stat}>
               <Text style={styles.statValue}>{value}</Text>
@@ -61,7 +122,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         </Card>
 
         {/* Business */}
-        <Text style={styles.sectionTitle}>Business</Text>
+        <Text style={styles.sectionTitle}>Personal & Business</Text>
         <Card padding="none" style={styles.fieldsCard}>
           {BUSINESS_FIELDS.map(({ icon, label, value }, i) => (
             <TouchableOpacity key={label} style={[styles.field, i < BUSINESS_FIELDS.length - 1 && styles.fieldBorder]}>
@@ -121,6 +182,8 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
 const styles = StyleSheet.create({
   scroll: { paddingHorizontal: layout.screenPadding, paddingBottom: 100 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  loadingText: { fontSize: 14, color: colors.textSecondary },
   profileCard: { alignItems: 'center', marginBottom: 12 },
   avatarRow: { marginBottom: 12 },
   avatarContainer: { position: 'relative' },

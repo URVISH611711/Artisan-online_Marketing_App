@@ -1,40 +1,57 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from datetime import datetime, timedelta, timezone
 import jwt
 import os
-
 import random
 from typing import Dict
 
 from app.database.connection import get_db
-from app.models.user import User
-from app.schemas.user import UserResponse
+from app.models.user import User, UserRole
+from app.schemas.user import UserResponse, UserSignUp
 from app.services.email import send_otp_email
+from app.api.deps import get_current_user
+from passlib.context import CryptContext
+
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
 
 router = APIRouter()
 
 # In-memory OTP store for prototype. In production, use Redis.
-# Format: { "email@example.com": { "otp": "1234", "expires": datetime } }
 OTP_STORE: Dict[str, dict] = {}
 
 SECRET_KEY = os.getenv("SECRET_KEY", "fallback_secret_key_for_dev")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "43200"))
 
+
 class LoginRequest(BaseModel):
     email: EmailStr
+    password: str
+
 
 class VerifyOTPRequest(BaseModel):
     email: EmailStr
     otp: str
 
+
 class Token(BaseModel):
     access_token: str
     token_type: str
     user: UserResponse
+
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
@@ -46,81 +63,153 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-@router.post("/login")
+
+# ─── GET /auth/me ────────────────────────────────────────────────
+@router.get("/me", response_model=UserResponse)
+def get_me(current_user: User = Depends(get_current_user)):
+    """Return the currently authenticated user's profile."""
+    return current_user
+
+
+# ─── POST /auth/login ───────────────────────────────────────────
+@router.post("/login", response_model=Token)
 def login(request: LoginRequest, db: Session = Depends(get_db)):
-    """
-    Initiates the login process by 'sending' an OTP to the user's email.
-    """
-    user = db.query(User).filter(User.email == request.email).first()
-    
+    """Authenticates the user with email and password, returning a JWT token."""
+    email = request.email.lower().strip()
+    user = db.query(User).filter(User.email == email).first()
+
     if not user:
-        # We allow sending OTP to non-existent users so they can register
-        pass
-        
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Account not found. Please sign up.",
+        )
+
+    if not user.hashed_password or not verify_password(
+        request.password, user.hashed_password
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+        )
+
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": str(user.id), "role": user.role},
+        expires_delta=access_token_expires,
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": user,
+    }
+
+
+# ─── POST /auth/register ────────────────────────────────────────
+@router.post("/register")
+def register(request: UserSignUp, db: Session = Depends(get_db)):
+    """Initiates the sign up process. Stores user details temporarily and sends OTP."""
+    email = request.email.lower().strip()
+    user = db.query(User).filter(User.email == email).first()
+    if user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Account with this email already exists.",
+        )
+
+    # Check phone uniqueness
+    if request.phone:
+        phone_user = db.query(User).filter(User.phone == request.phone).first()
+        if phone_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This mobile number is already registered. Please Log In.",
+            )
+
     # Generate a random 4-digit OTP
     otp_code = str(random.randint(1000, 9999))
-    
-    # Store OTP with a 10-minute expiration
-    OTP_STORE[request.email] = {
-        "otp": otp_code,
-        "expires": datetime.now(timezone.utc) + timedelta(minutes=10)
-    }
-    
-    # Send the email
-    email_sent = send_otp_email(request.email, otp_code)
-    
-    if not email_sent:
-        # Fallback for dev mode if SMTP isn't configured yet
-        print(f"[FALLBACK] Developer Mock OTP for {request.email} is {otp_code}")
-    
-    return {"message": "OTP sent successfully", "email": request.email}
 
+    signup_data = request.model_dump()
+    signup_data["email"] = email
+
+    # Store OTP and signup data with a 10-minute expiration
+    OTP_STORE[email] = {
+        "otp": otp_code,
+        "signup_data": signup_data,
+        "expires": datetime.now(timezone.utc) + timedelta(minutes=10),
+    }
+
+    # Send the email
+    email_sent = send_otp_email(email, otp_code)
+
+    if not email_sent:
+        print(f"[FALLBACK] Developer Mock OTP for {email} is {otp_code}")
+
+    return {"message": "OTP sent for registration", "email": email}
+
+
+# ─── POST /auth/verify-otp ──────────────────────────────────────
 @router.post("/verify-otp", response_model=Token)
 def verify_otp(request: VerifyOTPRequest, db: Session = Depends(get_db)):
-    """
-    Verifies the OTP and returns a JWT access token.
-    """
-    # Retrieve OTP from store
-    stored_data = OTP_STORE.get(request.email)
-    
+    """Verifies the OTP and returns a JWT access token. Creates user if signing up."""
+    email = request.email.lower().strip()
+    stored_data = OTP_STORE.get(email)
+
     if not stored_data:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="OTP expired or never requested",
         )
-        
+
     if datetime.now(timezone.utc) > stored_data["expires"]:
-        del OTP_STORE[request.email]
+        del OTP_STORE[email]
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="OTP has expired",
         )
-        
-    if request.otp != stored_data["otp"] and request.otp != "1234": # 1234 is universal fallback for dev
+
+    if (
+        request.otp != stored_data["otp"] and request.otp != "1234"
+    ):  # 1234 is universal fallback for dev
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid OTP code",
         )
-        
-    # OTP is valid, remove it from store
-    del OTP_STORE[request.email]
-        
-    user = db.query(User).filter(User.email == request.email).first()
-    if not user:
-        # Auto-create user for seamless OTP flow
+
+    # OTP is valid
+    signup_data = stored_data.get("signup_data")
+    del OTP_STORE[email]
+
+    user = db.query(User).filter(User.email == email).first()
+
+    # If this was a sign up flow, create the user
+    if signup_data and not user:
         import uuid
-        from app.models.user import UserRole, AppLanguage
+
+        hashed_pw = get_password_hash(signup_data["password"])
         user = User(
             id=uuid.uuid4(),
-            email=request.email,
-            name="New User",
+            email=signup_data["email"],
+            name=signup_data["name"],
+            phone=signup_data["phone"],
+            address=signup_data["address"],
+            hashed_password=hashed_pw,
             role=UserRole.ARTISAN,
-            is_verified=True
+            is_verified=True,
         )
         db.add(user)
-        db.commit()
-        db.refresh(user)
-        
+        try:
+            db.commit()
+            db.refresh(user)
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A user with this mobile number or email already exists.",
+            )
+    elif not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
     # Mark user as verified if they weren't already
     if not user.is_verified:
         user.is_verified = True
@@ -129,11 +218,12 @@ def verify_otp(request: VerifyOTPRequest, db: Session = Depends(get_db)):
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": str(user.id), "role": user.role}, expires_delta=access_token_expires
+        data={"sub": str(user.id), "role": user.role},
+        expires_delta=access_token_expires,
     )
-    
+
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "user": user
+        "user": user,
     }

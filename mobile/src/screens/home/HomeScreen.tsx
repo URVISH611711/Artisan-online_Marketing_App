@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   useWindowDimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,7 +19,8 @@ import { colors } from '../../theme/colors';
 import { shadows } from '../../theme/spacing';
 import { rs, rf, rp, rg, rv } from '../../theme/responsive';
 import { useAuthStore } from '../../store/useAuthStore';
-import { mockProducts, mockOrders, mockSalesData, mockInsights, mockNotifications } from '../../services/mock/mockData';
+import { fetchDashboard, fetchNotifications, DashboardData } from '../../services/api';
+import { useFocusEffect } from '@react-navigation/native';
 
 type Props = { navigation: NativeStackNavigationProp<HomeStackParamList, 'HomeMain'> };
 
@@ -27,9 +29,30 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
-  const unreadCount = mockNotifications.filter((n) => !n.read).length;
-  const liveProducts = mockProducts.filter((p) => p.status === 'live').length;
-  const newOrders = mockOrders.filter((o) => o.status === 'new').length;
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  const loadData = useCallback(async () => {
+    try {
+      const [dashData, notifs] = await Promise.all([
+        fetchDashboard(),
+        fetchNotifications(),
+      ]);
+      setDashboard(dashData);
+      setUnreadCount(notifs.filter((n) => !n.read).length);
+    } catch (err) {
+      console.error('Dashboard load error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   const greeting = () => {
     const hour = new Date().getHours();
@@ -44,6 +67,10 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const statFontSize = rv({ small: 20, medium: 24, large: 26 });
   const statLabelSize = rv({ small: 11, medium: 12, large: 13 });
   const cardPad = rv({ small: 10, medium: 14, large: 16 });
+
+  const productsCount = dashboard?.products_count ?? 0;
+  const ordersCount = dashboard?.new_orders_count ?? 0;
+  const totalSales = dashboard?.total_sales ?? 0;
 
   return (
     <ScreenWrapper scrollable={false} padded={false}>
@@ -60,38 +87,43 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
           styles.scrollContent,
           {
             paddingHorizontal: hPad,
-            paddingBottom: insets.bottom + rs(80), // clear bottom nav
+            paddingBottom: insets.bottom + rs(80),
           },
         ]}
       >
         {/* ── Business overview cards ── */}
         <Text style={styles.sectionLabel}>Your business today</Text>
-        <View style={[styles.statsRow, { gap: cardGap, marginBottom: rs(14) }]}>
-          {/* Each stat card uses flex: 1 and minWidth: 0 — they share width equally */}
-          <Card style={[styles.statCard, { padding: cardPad }]} padding="none">
-            <Text style={[styles.statValue, { fontSize: statFontSize }]}>{liveProducts}</Text>
-            <Text style={[styles.statLabel, { fontSize: statLabelSize }]}>Products</Text>
-          </Card>
-          <Card style={[styles.statCard, { padding: cardPad }]} padding="none">
-            <View style={styles.statValueRow}>
-              <Text style={[styles.statValue, { fontSize: statFontSize }]}>{newOrders}</Text>
-              {newOrders > 0 && <View style={styles.newBadge} />}
-            </View>
-            <Text style={[styles.statLabel, { fontSize: statLabelSize }]}>Orders</Text>
-          </Card>
-          <Card style={[styles.statCard, { padding: cardPad }]} padding="none">
-            {/* Allow value to shrink — never truncate with fixed width */}
-            <Text
-              style={[styles.statValue, { fontSize: statFontSize }]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.75}
-            >
-              ₹{(mockSalesData.totalSales / 1000).toFixed(0)}K
-            </Text>
-            <Text style={[styles.statLabel, { fontSize: statLabelSize }]}>Sales</Text>
-          </Card>
-        </View>
+
+        {loading ? (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator size="small" color={colors.primary} />
+          </View>
+        ) : (
+          <View style={[styles.statsRow, { gap: cardGap, marginBottom: rs(14) }]}>
+            <Card style={[styles.statCard, { padding: cardPad }]} padding="none">
+              <Text style={[styles.statValue, { fontSize: statFontSize }]}>{productsCount}</Text>
+              <Text style={[styles.statLabel, { fontSize: statLabelSize }]}>Products</Text>
+            </Card>
+            <Card style={[styles.statCard, { padding: cardPad }]} padding="none">
+              <View style={styles.statValueRow}>
+                <Text style={[styles.statValue, { fontSize: statFontSize }]}>{ordersCount}</Text>
+                {ordersCount > 0 && <View style={styles.newBadge} />}
+              </View>
+              <Text style={[styles.statLabel, { fontSize: statLabelSize }]}>Orders</Text>
+            </Card>
+            <Card style={[styles.statCard, { padding: cardPad }]} padding="none">
+              <Text
+                style={[styles.statValue, { fontSize: statFontSize }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.75}
+              >
+                {totalSales >= 1000 ? `₹${(totalSales / 1000).toFixed(0)}K` : `₹${totalSales}`}
+              </Text>
+              <Text style={[styles.statLabel, { fontSize: statLabelSize }]}>Sales</Text>
+            </Card>
+          </View>
+        )}
 
         {/* ── Add Product CTA ── */}
         <TouchableOpacity
@@ -100,11 +132,9 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
           activeOpacity={0.85}
           accessibilityLabel="Add a new product"
         >
-          {/* Icon — shrink: 0 so it never squishes */}
           <View style={styles.addProductIcon}>
             <Ionicons name="camera" size={rs(22)} color={colors.textOnPrimary} />
           </View>
-          {/* Text container — flex: 1 + minWidth: 0 is the key pattern */}
           <View style={styles.addProductTextContainer}>
             <Text style={styles.addProductTitle}>Add Product</Text>
             <Text style={styles.addProductDesc} numberOfLines={2}>
@@ -137,7 +167,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
           >
             <Ionicons name="grid-outline" size={rs(26)} color={colors.primary} />
             <Text style={styles.quickTitle}>My Products</Text>
-            <Text style={styles.quickSub}>{mockProducts.length} items</Text>
+            <Text style={styles.quickSub}>{productsCount} items</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.quickCard, shadows.card]}
@@ -151,37 +181,34 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
         </View>
 
         {/* ── AI Suggestion ── */}
-        {mockInsights.length > 0 && (
-          <Card variant="ai" padding="none" style={styles.aiCard}>
-            <View style={[styles.aiCardContent, { padding: rs(14) }]}>
-              {/* Label row */}
-              <View style={styles.aiLabelRow}>
-                <Ionicons name="sparkles" size={rs(14)} color={colors.primary} />
-                <Text style={styles.aiLabelText}>AI Suggestion</Text>
-              </View>
-              {/* Title */}
-              <Text style={styles.aiTitle}>{mockInsights[0].title}</Text>
-              {/* Message — allow full wrapping */}
-              <Text style={styles.aiMessage}>{mockInsights[0].message}</Text>
-              {/* CTA */}
-              <TouchableOpacity style={styles.aiAction}>
-                <Text style={styles.aiActionText}>{mockInsights[0].actionLabel}</Text>
-                <Ionicons name="arrow-forward" size={rs(13)} color={colors.primary} />
-              </TouchableOpacity>
+        <Card variant="ai" padding="none" style={styles.aiCard}>
+          <View style={[styles.aiCardContent, { padding: rs(14) }]}>
+            <View style={styles.aiLabelRow}>
+              <Ionicons name="sparkles" size={rs(14)} color={colors.primary} />
+              <Text style={styles.aiLabelText}>AI Suggestion</Text>
             </View>
-          </Card>
-        )}
+            <Text style={styles.aiTitle}>Get Started</Text>
+            <Text style={styles.aiMessage}>
+              {productsCount === 0
+                ? 'Add your first product to start receiving orders and AI insights.'
+                : 'No new AI insights available yet. Keep adding products!'}
+            </Text>
+            <TouchableOpacity
+              style={styles.aiAction}
+              onPress={() => navigation.navigate('AddProduct', { screen: 'Camera' })}
+            >
+              <Text style={styles.aiActionText}>Add product</Text>
+              <Ionicons name="arrow-forward" size={rs(13)} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+        </Card>
       </ScrollView>
     </ScreenWrapper>
   );
 };
 
 const styles = StyleSheet.create({
-  scrollContent: {
-    // paddingHorizontal and paddingBottom set dynamically above
-  },
-
-  // Section label
+  scrollContent: {},
   sectionLabel: {
     fontSize: rf(12),
     fontWeight: '600',
@@ -191,14 +218,17 @@ const styles = StyleSheet.create({
     marginBottom: rs(10),
     marginTop: rs(4),
   },
-
-  // ── Stats row ──────────────────────────────────────────────
+  loadingRow: {
+    height: rs(80),
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   statsRow: {
     flexDirection: 'row',
   },
   statCard: {
     flex: 1,
-    minWidth: 0, // prevents overflow in tight spaces
+    minWidth: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -223,8 +253,6 @@ const styles = StyleSheet.create({
     borderRadius: rs(4),
     backgroundColor: colors.secondary,
   },
-
-  // ── Add Product Card ──────────────────────────────────────
   addProductCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -242,13 +270,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    flexShrink: 0, // never squish the icon
+    flexShrink: 0,
   },
   addProductTextContainer: {
-    flex: 1,       // take remaining space
-    minWidth: 0,   // allow shrinking below intrinsic width
+    flex: 1,
+    minWidth: 0,
     marginLeft: rs(12),
-    marginRight: rs(6),
   },
   addProductTitle: {
     fontSize: rf(15),
@@ -259,38 +286,32 @@ const styles = StyleSheet.create({
   addProductDesc: {
     fontSize: rf(12),
     color: colors.textSecondary,
-    lineHeight: rf(17),
+    lineHeight: rf(16),
   },
   addProductArrow: {
     flexShrink: 0,
+    marginLeft: rs(8),
   },
-
-  // ── Voice Card ─────────────────────────────────────────────
   voiceCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: colors.surface,
-    borderRadius: rs(14),
-    paddingVertical: rs(13),
-    paddingHorizontal: rs(14),
+    borderRadius: rs(12),
+    paddingHorizontal: rs(16),
+    paddingVertical: rs(14),
     marginBottom: rs(14),
-    minHeight: rs(52), // comfortable touch target
   },
   voiceInner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: rs(10),
-    flex: 1,
-    minWidth: 0,
   },
   voiceText: {
     fontSize: rf(14),
-    fontWeight: '500',
+    fontWeight: '600',
     color: colors.textPrimary,
   },
-
-  // ── Quick access row ───────────────────────────────────────
   quickRow: {
     flexDirection: 'row',
     marginBottom: rs(14),
@@ -299,53 +320,49 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     backgroundColor: colors.surface,
-    borderRadius: rs(14),
+    borderRadius: rs(12),
     padding: rs(14),
-    alignItems: 'flex-start',
-    minHeight: rs(100), // comfortable card height
+    alignItems: 'center',
+    gap: rs(6),
   },
   quickTitle: {
     fontSize: rf(13),
     fontWeight: '700',
     color: colors.textPrimary,
-    marginTop: rs(8),
-    marginBottom: rs(2),
+    textAlign: 'center',
   },
   quickSub: {
     fontSize: rf(11),
     color: colors.textSecondary,
   },
-
-  // ── AI Suggestion ──────────────────────────────────────────
   aiCard: {
-    marginBottom: rs(16),
+    marginBottom: rs(14),
+    overflow: 'hidden',
   },
-  aiCardContent: {
-    // padding set dynamically
-  },
+  aiCardContent: {},
   aiLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: rs(5),
+    gap: rs(4),
     marginBottom: rs(6),
   },
   aiLabelText: {
-    fontSize: rf(11),
-    fontWeight: '600',
+    fontSize: rf(10),
+    fontWeight: '700',
     color: colors.primary,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   aiTitle: {
-    fontSize: rf(16),
+    fontSize: rf(15),
     fontWeight: '700',
     color: colors.textPrimary,
-    marginBottom: rs(5),
+    marginBottom: rs(4),
   },
   aiMessage: {
     fontSize: rf(13),
     color: colors.textSecondary,
-    lineHeight: rf(20),
+    lineHeight: rf(18),
     marginBottom: rs(10),
   },
   aiAction: {

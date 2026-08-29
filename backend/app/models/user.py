@@ -24,6 +24,7 @@ class User(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     phone: Mapped[Optional[str]] = mapped_column(String(20), unique=True, index=True, nullable=True)
     hashed_password: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     name: Mapped[str] = mapped_column(String(255))
+    address: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.ARTISAN, index=True)
     preferred_language: Mapped[AppLanguage] = mapped_column(Enum(AppLanguage), default=AppLanguage.EN)
     voice_language: Mapped[AppLanguage] = mapped_column(Enum(AppLanguage), default=AppLanguage.EN)
