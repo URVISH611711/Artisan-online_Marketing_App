@@ -22,7 +22,6 @@ class ModelKey(str, Enum):
     RMBG = "RMBG"
     SD_INPAINT = "SD_INPAINT"
     WHISPER = "WHISPER"
-    LLM_TEXT = "LLM_TEXT"
 
 
 class ModelManager:
@@ -43,9 +42,6 @@ class ModelManager:
             elif key == ModelKey.WHISPER:
                 from app.services.voice_stt import unload_whisper_model
                 unload_whisper_model()
-            elif key == ModelKey.LLM_TEXT:
-                from app.services.llm_prompt import unload_llm_pipeline
-                unload_llm_pipeline()
         except Exception as e:
             logger.warning(f"[ModelManager] Error unloading {key}: {e}")
 

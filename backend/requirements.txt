@@ -31,8 +31,7 @@ supabase>=2.0.0
 # transformers here breaks `from diffusers import StableDiffusionInpaintPipeline`
 # with an ImportError, taking down the WORKING SD inpainting pipeline.
 #
-# Newer transformers (needed for Qwen2.5-VL) lives in ../vision_service,
-# which has its OWN venv for exactly this reason. Keep it that way.
+# transformers is used by diffusers internally, no vision_service sidecar needed.
 transformers==4.39.3
 huggingface-hub==0.22.2
 diffusers==0.27.2

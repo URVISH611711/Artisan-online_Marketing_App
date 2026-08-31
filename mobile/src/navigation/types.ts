@@ -98,5 +98,4 @@ export type RootStackParamList = {
   Auth: NavigatorScreenParams<AuthStackParamList>;
   Main: NavigatorScreenParams<MainTabParamList>;
   Marketplace: NavigatorScreenParams<MarketplaceStackParamList>;
-  AIAssistant: undefined;
 };

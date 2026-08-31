@@ -4,7 +4,6 @@ import { RootStackParamList } from './types';
 import { useAuthStore } from '../store/useAuthStore';
 import { AuthNavigator } from './AuthNavigator';
 import { MainTabNavigator } from './MainTabNavigator';
-import { AIAssistantScreen } from '../screens/ai/AIAssistantScreen';
 import { BuyerHomeScreen } from '../screens/marketplace/BuyerHomeScreen';
 import { SearchResultsScreen } from '../screens/marketplace/SearchResultsScreen';
 import { BuyerProductScreen } from '../screens/marketplace/BuyerProductScreen';
@@ -25,9 +24,6 @@ export const RootNavigator: React.FC = () => {
           <Stack.Screen name="Main">
             {() => <MainTabNavigator onMicPress={() => setAiVisible(true)} />}
           </Stack.Screen>
-          <Stack.Group screenOptions={{ presentation: 'modal' }}>
-            <Stack.Screen name="AIAssistant" component={AIAssistantScreen} />
-          </Stack.Group>
           <Stack.Group>
             <Stack.Screen name="Marketplace" component={MarketplaceStackScreen} />
           </Stack.Group>
