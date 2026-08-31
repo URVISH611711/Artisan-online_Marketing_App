@@ -16,6 +16,8 @@ interface HeaderProps {
   onBack?: () => void;
   onNotifications?: () => void;
   notificationCount?: number;
+  onCartPress?: () => void;
+  cartCount?: number;
   rightIcon?: keyof typeof Ionicons.glyphMap;
   onRightPress?: () => void;
   rightText?: string;
@@ -30,6 +32,8 @@ export const Header: React.FC<HeaderProps> = ({
   onBack,
   onNotifications,
   notificationCount = 0,
+  onCartPress,
+  cartCount = 0,
   rightIcon,
   onRightPress,
   rightText,
@@ -68,7 +72,7 @@ export const Header: React.FC<HeaderProps> = ({
         </View>
 
         {/* Right: notification icon */}
-        {onNotifications && (
+        {onCartPress && (<TouchableOpacity onPress={onCartPress} style={styles.iconButton} accessibilityLabel={`Cart, ${cartCount} items`} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Ionicons name="cart-outline" size={rs(22)} color={colors.textPrimary} />{cartCount > 0 && (<CountBadge count={cartCount} style={styles.notifBadge} />)}</TouchableOpacity>)}{onNotifications && (
           <TouchableOpacity
             onPress={onNotifications}
             style={styles.iconButton}
@@ -135,7 +139,7 @@ export const Header: React.FC<HeaderProps> = ({
             <Ionicons name={rightIcon} size={rs(22)} color={colors.textPrimary} />
           </TouchableOpacity>
         )}
-        {onNotifications && (
+        {onCartPress && (<TouchableOpacity onPress={onCartPress} style={styles.iconButton} accessibilityLabel={`Cart, ${cartCount} items`} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Ionicons name="cart-outline" size={rs(22)} color={colors.textPrimary} />{cartCount > 0 && (<CountBadge count={cartCount} style={styles.notifBadge} />)}</TouchableOpacity>)}{onNotifications && (
           <TouchableOpacity
             onPress={onNotifications}
             style={styles.iconButton}

@@ -37,11 +37,7 @@ export const VoiceScreen: React.FC<Props> = ({ navigation }) => {
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
   const { updateDraft } = useDraftStore();
 
-  const audioRecorder = useAudioRecorder({
-    sampleRate: 16000,
-    numberOfChannels: 1,
-    bitRate: 128000,
-  });
+  const audioRecorder = useAudioRecorder({} as any);
 
   // Request permissions on mount
   useEffect(() => {
@@ -78,7 +74,7 @@ export const VoiceScreen: React.FC<Props> = ({ navigation }) => {
           const result = await transcribeVoice(audioRecorder.uri);
           
           setTranscript((prev) => (prev ? prev + ' ' + result.text : result.text).trim());
-          updateDraft({ transcriptLanguage: result.language || selectedLang });
+          // Language detection can be used if needed, but not part of draft yet
         } catch (err) {
           console.warn('Transcription failed:', err);
         } finally {
@@ -91,8 +87,8 @@ export const VoiceScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const handleNext = () => {
-    updateDraft({ transcript });
-    navigation.navigate('ProductDetails');
+    updateDraft({ description: transcript });
+    navigation.navigate('ProductDetails', { imageUris: [] });
   };
 
   const selectedLangName = LANGUAGES.find((l) => l.code === selectedLang)?.name || 'Hindi';

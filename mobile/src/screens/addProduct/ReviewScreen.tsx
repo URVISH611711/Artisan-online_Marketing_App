@@ -28,6 +28,18 @@ export const ReviewScreen: React.FC<Props> = ({ navigation, route }) => {
   
   const [publishing, setPublishing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [selectedUrls, setSelectedUrls] = useState<string[]>(enhancedUrls);
+  const [previewImage, setPreviewImage] = useState<string | null>(enhancedUrls[0] || null);
+
+  const toggleUrl = (url: string) => {
+    setSelectedUrls((prev) => {
+      if (prev.includes(url)) {
+        if (prev.length <= 1) return prev;
+        return prev.filter((u) => u !== url);
+      }
+      return [...prev, url];
+    });
+  };
 
   const handlePublish = async () => {
     if (publishing) return;
@@ -35,11 +47,11 @@ export const ReviewScreen: React.FC<Props> = ({ navigation, route }) => {
     setErrorMessage('');
     
     try {
-      const res = await publishStudioProduct(jobId, productDetails);
-      if (res.success && res.product_id) {
+      const res: any = await publishStudioProduct(jobId, productDetails, selectedUrls);
+      if (res && res.success && res.product_id) {
         navigation.navigate('Success', { productId: res.product_id });
       } else {
-        throw new Error(res.message || 'Failed to publish product');
+        throw new Error(res?.message || 'Failed to save draft');
       }
     } catch (error: any) {
       setErrorMessage(error.message || 'Network error');
@@ -47,7 +59,7 @@ export const ReviewScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  const previewImage = enhancedUrls.length > 0 ? enhancedUrls[0] : null;
+  const activePreview = previewImage || (enhancedUrls.length > 0 ? enhancedUrls[0] : null);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
@@ -55,15 +67,15 @@ export const ReviewScreen: React.FC<Props> = ({ navigation, route }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Review & Publish</Text>
+        <Text style={styles.headerTitle}>Draft</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: 150 + insets.bottom }]}>
         {/* Thumbnail */}
         <Card padding="none" style={styles.imageCard}>
-          {previewImage ? (
-            <Image source={{ uri: previewImage }} style={styles.productImage} resizeMode="cover" />
+          {activePreview ? (
+            <Image source={{ uri: activePreview }} style={styles.productImage} resizeMode="cover" />
           ) : (
             <View style={[styles.productImage, styles.imagePlaceholder]}>
               <Ionicons name="image-outline" size={48} color={colors.textTertiary} />
@@ -77,8 +89,35 @@ export const ReviewScreen: React.FC<Props> = ({ navigation, route }) => {
           </View>
         </Card>
 
+        {enhancedUrls.length > 1 && (
+          <View style={styles.thumbRow}>
+            {enhancedUrls.map((url, idx) => {
+              const isSelected = selectedUrls.includes(url);
+              return (
+                <TouchableOpacity
+                  key={idx}
+                  onPress={() => {
+                    setPreviewImage(url);
+                    toggleUrl(url);
+                  }}
+                  style={[styles.thumbItem, !isSelected && styles.thumbItemDim]}
+                >
+                  <Image source={{ uri: url }} style={styles.thumbImg} />
+                  <View style={styles.checkPos}>
+                    <Ionicons
+                      name={isSelected ? "checkmark-circle" : "ellipse-outline"}
+                      size={16}
+                      color={isSelected ? colors.success : colors.textTertiary}
+                    />
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
         {/* Ready checklist */}
-        <Text style={styles.readyLabel}>Ready to publish</Text>
+        <Text style={styles.readyLabel}>Ready to save as draft</Text>
         <Card padding="md" style={styles.checklistCard}>
           <CheckItem label="Professional photos created" />
           <CheckItem label="Product details complete" />
@@ -96,11 +135,12 @@ export const ReviewScreen: React.FC<Props> = ({ navigation, route }) => {
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <Button
-          title="Publish Product"
+          title="Save as Draft"
           onPress={handlePublish}
           loading={publishing}
           disabled={publishing}
-          rightIcon={<Ionicons name="arrow-up-circle-outline" size={20} color={colors.surface} />}
+          icon="document-text-outline"
+          iconPosition="right"
         />
         <Button
           title="Go Back"
@@ -122,7 +162,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: colors.border
   },
   backBtn: { padding: 8 },
-  headerTitle: { ...typography.h3, color: colors.textPrimary },
+  headerTitle: { ...typography.styles.heading, color: colors.textPrimary },
   scroll: { paddingHorizontal: layout.screenPadding, paddingTop: 16 },
   
   imageCard: { marginBottom: 24, overflow: 'hidden', borderRadius: 16 },
@@ -132,10 +172,16 @@ const styles = StyleSheet.create({
     position: 'absolute', bottom: 0, left: 0, right: 0,
     backgroundColor: 'rgba(0,0,0,0.6)', padding: 16,
   },
-  productName: { ...typography.h4, color: '#fff', marginBottom: 4 },
-  productPrice: { ...typography.h3, fontWeight: '800', color: '#fff' },
+  productName: { ...typography.styles.title, color: '#fff', marginBottom: 4 },
+  productPrice: { ...typography.styles.heading, fontWeight: '800', color: '#fff' },
   
-  readyLabel: { ...typography.h4, color: colors.textPrimary, marginBottom: 12 },
+  thumbRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
+  thumbItem: { width: 56, height: 56, borderRadius: 8, overflow: 'hidden', borderWidth: 2, borderColor: colors.primary, position: 'relative' },
+  thumbItemDim: { opacity: 0.4, borderColor: colors.border },
+  thumbImg: { width: '100%', height: '100%' },
+  checkPos: { position: 'absolute', top: 2, right: 2, backgroundColor: '#fff', borderRadius: 8 },
+
+  readyLabel: { ...typography.styles.title, color: colors.textPrimary, marginBottom: 12 },
   checklistCard: { marginBottom: 16 },
   checkRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   checkIcon: { 
@@ -144,7 +190,7 @@ const styles = StyleSheet.create({
   },
   checkDone: { backgroundColor: colors.success },
   checkPending: { backgroundColor: colors.border },
-  checkLabel: { ...typography.body1, color: colors.textPrimary, fontWeight: '500' },
+  checkLabel: { ...typography.styles.body, color: colors.textPrimary, fontWeight: '500' },
   checkLabelPending: { color: colors.textSecondary },
   
   errorContainer: {
@@ -152,7 +198,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF5F5', padding: 12, borderRadius: 8,
     marginTop: 8,
   },
-  errorText: { ...typography.body2, color: colors.warning, flex: 1 },
+  errorText: { ...typography.styles.bodySmall, color: colors.warning, flex: 1 },
   
   footer: { 
     position: 'absolute', bottom: 0, left: 0, right: 0,

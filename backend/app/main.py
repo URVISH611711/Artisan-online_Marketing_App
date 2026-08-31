@@ -33,5 +33,6 @@ def root():
     return {"message": "Welcome to Artisan-AI API"}
 
 @app.get("/health")
+@app.get(f"{settings.API_V1_STR}/health")
 def health_check():
     return {"status": "ok", "version": settings.VERSION}

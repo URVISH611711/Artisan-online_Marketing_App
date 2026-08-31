@@ -1,4 +1,4 @@
-from typing import Generator
+from typing import Generator, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from fastapi import Depends, HTTPException, status
@@ -10,6 +10,7 @@ from app.database.connection import SessionLocal
 from app.models.user import User
 
 security = HTTPBearer()
+optional_security = HTTPBearer(auto_error=False)
 
 # Read from pydantic-settings (which loads .env). os.getenv() does NOT see .env
 # because nothing calls load_dotenv() — using it silently signed every JWT with
@@ -63,6 +64,30 @@ def get_current_user(
             detail="Account is deactivated",
         )
     return user
+
+
+def get_optional_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    """Like get_current_user but never raises.
+
+    Returns the authenticated user when a valid token is present, otherwise
+    None. Used by endpoints that are usable anonymously but personalize their
+    result for a signed-in user — e.g. the marketplace, which hides the
+    viewer's OWN products so nobody is offered their own listing to buy.
+    """
+    if credentials is None:
+        return None
+    try:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+    except jwt.InvalidTokenError:
+        # ExpiredSignatureError is a subclass, so expired tokens land here too.
+        return None
+    if not user_id:
+        return None
+    return db.query(User).filter(User.id == user_id, User.is_active.is_(True)).first()
 
 
 def ensure_artisan_profile(db: Session, user: User) -> "ArtisanProfile":

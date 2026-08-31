@@ -21,7 +21,7 @@ export interface Order {
   updatedAt: string;
 }
 
-export type OrderStatus = 'new' | 'accepted' | 'processing' | 'shipped' | 'completed' | 'cancelled';
+export type OrderStatus = 'new' | 'pending' | 'accepted' | 'processing' | 'shipped' | 'delivered' | 'completed' | 'cancelled' | 'rejected';
 
 export interface OrderTimelineItem {
   label: string;

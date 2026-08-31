@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { ProductsStackParamList } from '../../navigation/types';
@@ -10,8 +10,9 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { colors } from '../../theme/colors';
 import { layout } from '../../theme/spacing';
-import { fetchProduct, ProductData } from '../../services/api';
+import { fetchProduct, updateProduct, ProductData } from '../../services/api';
 import { Ionicons } from '@expo/vector-icons';
+import { getImageSource } from '../../utils/image';
 
 type Props = {
   navigation: NativeStackNavigationProp<ProductsStackParamList, 'ProductDetail'>;
@@ -21,13 +22,53 @@ type Props = {
 export const ProductDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const [product, setProduct] = useState<ProductData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [publishing, setPublishing] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedForPublish, setSelectedForPublish] = useState<string[]>([]);
 
   useEffect(() => {
     fetchProduct(route.params.productId)
-      .then(setProduct)
+      .then((data) => {
+        setProduct(data);
+        if (data && data.images) {
+          setSelectedForPublish(data.images.map((img: any) => img.id));
+        }
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [route.params.productId]);
+
+  const toggleImageSelection = (imgId: string) => {
+    setSelectedForPublish((prev) => {
+      if (prev.includes(imgId)) {
+        if (prev.length <= 1) {
+          Alert.alert("Notice", "At least one image must be selected for publishing.");
+          return prev;
+        }
+        return prev.filter((id) => id !== imgId);
+      } else {
+        return [...prev, imgId];
+      }
+    });
+  };
+
+  const handlePublish = async () => {
+    if (!product) return;
+    try {
+      setPublishing(true);
+      const updated = await updateProduct(product.id, { 
+        status: 'PUBLISHED',
+        selected_image_ids: selectedForPublish,
+      });
+      setProduct(updated);
+      Alert.alert("Success", "Your product is now live on the marketplace!");
+    } catch (err: any) {
+      console.error(err);
+      Alert.alert("Error", err.message || "Failed to publish product");
+    } finally {
+      setPublishing(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -51,7 +92,12 @@ export const ProductDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     );
   }
 
-  const statusKey = product.status === 'PUBLISHED' ? 'live' : product.status === 'DRAFT' ? 'draft' : product.status === 'OUT_OF_STOCK' ? 'out_of_stock' : 'draft';
+  const primaryImageUrl = product.images?.find((img: any) => img.is_enhanced || img.isEnhanced)?.url || product.images?.[0]?.url || 'https://via.placeholder.com/400';
+  const activeImage = selectedImage || primaryImageUrl;
+
+  const statusKey = product.status?.toUpperCase() === 'PUBLISHED' ? 'live' : 
+                    product.status?.toUpperCase() === 'DRAFT' ? 'draft' : 
+                    product.status?.toUpperCase() === 'OUT_OF_STOCK' ? 'out_of_stock' : 'draft';
   const statusVariant = {
     live: 'success' as const,
     draft: 'warning' as const,
@@ -65,7 +111,43 @@ export const ProductDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Image */}
-        <Image source={{ uri: product.images?.[0]?.url || 'https://via.placeholder.com/400' }} style={styles.image} resizeMode="cover" />
+        <Image source={getImageSource(activeImage)} style={styles.image} resizeMode="cover" />
+        
+        {product.images && product.images.length > 1 && (
+          <View style={styles.thumbContainer}>
+            {product.images.map((img: any, idx: number) => {
+              const isSelected = selectedForPublish.includes(img.id);
+              return (
+                <TouchableOpacity 
+                  key={idx} 
+                  onPress={() => {
+                    setSelectedImage(img.url);
+                    if (statusKey === 'draft') toggleImageSelection(img.id);
+                  }} 
+                  style={[
+                    styles.thumbBtn, 
+                    activeImage === img.url && styles.thumbBtnActive,
+                    statusKey === 'draft' && !isSelected && styles.thumbBtnDim
+                  ]}
+                >
+                  <Image source={getImageSource(img.url)} style={styles.thumbImage} />
+                  {statusKey === 'draft' && (
+                    <View style={styles.checkBadge}>
+                      <Ionicons 
+                        name={isSelected ? "checkmark-circle" : "ellipse-outline"} 
+                        size={18} 
+                        color={isSelected ? colors.success : colors.textTertiary} 
+                      />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+        {statusKey === 'draft' && product.images && product.images.length > 1 && (
+          <Text style={styles.selectHint}>Tap image thumbnails above to select which photos to keep when publishing.</Text>
+        )}
 
         <View style={styles.content}>
           {/* Title row */}
@@ -83,7 +165,7 @@ export const ProductDetailScreen: React.FC<Props> = ({ navigation, route }) => {
               {[
                 { label: 'Views', value: product.views || 0 },
                 { label: 'Orders', value: product.orders || 0 },
-                { label: 'Stock', value: 0 },
+                { label: 'Stock', value: product.inventory?.available_quantity ?? 0 },
               ].map(({ label, value }) => (
                 <View key={label} style={styles.stat}>
                   <Text style={styles.statValue}>{value}</Text>
@@ -122,7 +204,13 @@ export const ProductDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       {/* Actions */}
       <View style={styles.footer}>
         {statusKey === 'draft' && (
-          <Button title="Publish Product" onPress={() => {}} icon="arrow-up-circle-outline" iconPosition="right" />
+          <Button 
+            title="Publish Product" 
+            onPress={handlePublish} 
+            icon="arrow-up-circle-outline" 
+            iconPosition="right" 
+            loading={publishing}
+          />
         )}
         {statusKey === 'live' && (
           <Button title="Boost Product" onPress={() => {}} icon="trending-up-outline" iconPosition="right" />
@@ -136,6 +224,13 @@ export const ProductDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   scroll: { paddingBottom: 120 },
   image: { width: '100%', height: 280, backgroundColor: colors.borderLight },
+  thumbContainer: { flexDirection: 'row', gap: 10, paddingHorizontal: layout.screenPadding, paddingTop: 12 },
+  thumbBtn: { width: 56, height: 56, borderRadius: 8, overflow: 'hidden', borderWidth: 2, borderColor: colors.border, position: 'relative' },
+  thumbBtnActive: { borderColor: colors.primary },
+  thumbBtnDim: { opacity: 0.4 },
+  thumbImage: { width: '100%', height: '100%' },
+  checkBadge: { position: 'absolute', top: 2, right: 2, backgroundColor: '#fff', borderRadius: 9 },
+  selectHint: { fontSize: 12, color: colors.textSecondary, paddingHorizontal: layout.screenPadding, paddingTop: 6, fontStyle: 'italic' },
   content: { paddingHorizontal: layout.screenPadding, paddingTop: 16 },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   titleLeft: { flex: 1, marginRight: 12 },

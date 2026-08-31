@@ -51,12 +51,15 @@ export type ProductsStackParamList = {
   ProductsList: undefined;
   ProductDetail: { productId: string };
   EditProduct: { productId: string };
+  BuyerProduct: { productId: string };
+  Cart: undefined;
+  Checkout: undefined;
 };
 
 // Orders stack
 export type OrdersStackParamList = {
   OrdersList: undefined;
-  OrderDetail: { orderId: string };
+  OrderDetail: { orderId: string; role?: 'buyer' | 'seller' };
   BulkOrder: { bulkOrderId: string };
   CounterOffer: { bulkOrderId: string };
 };

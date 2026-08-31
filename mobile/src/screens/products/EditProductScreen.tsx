@@ -29,6 +29,7 @@ export const EditProductScreen: React.FC<Props> = ({ navigation, route }) => {
       .then((p) => {
         setName(p.name);
         setPrice(String(p.price));
+        setQuantity(String(p.inventory?.available_quantity ?? 0));
         setDescription(p.description);
       })
       .catch(console.error)

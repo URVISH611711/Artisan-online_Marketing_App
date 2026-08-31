@@ -5,6 +5,7 @@ import { colors } from '../../theme/colors';
 import { layout, shadows } from '../../theme/spacing';
 import { Badge } from '../ui/Badge';
 import { Product } from '../../types';
+import { getImageSource } from '../../utils/image';
 
 interface ProductCardProps {
   product: Product;
@@ -31,6 +32,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     archived: 'Archived',
   }[product.status];
 
+  const primaryImageUrl = product.images?.find(img => img.isEnhanced)?.url || product.images?.[0]?.url;
+
   if (variant === 'list') {
     return (
       <TouchableOpacity
@@ -39,7 +42,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         activeOpacity={0.7}
       >
         <Image
-          source={{ uri: product.images[0]?.url }}
+          source={getImageSource(primaryImageUrl)}
           style={listStyles.image}
           resizeMode="cover"
         />
@@ -58,9 +61,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       onPress={() => onPress(product)}
       activeOpacity={0.7}
     >
-      {product.images[0]?.url ? (
+      {primaryImageUrl ? (
         <Image
-          source={{ uri: product.images[0].url }}
+          source={getImageSource(primaryImageUrl)}
           style={gridStyles.image}
           resizeMode="cover"
         />
@@ -75,9 +78,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <View style={gridStyles.bottomRow}>
           <Badge label={statusLabel} variant={statusVariant} size="sm" />
         </View>
-        {product.views > 0 && (
-          <Text style={gridStyles.meta}>{product.views} views • {product.orders} orders</Text>
-        )}
+        <Text style={gridStyles.meta}>
+          Stock: {product.quantity}{product.views > 0 ? ` • ${product.views} views` : ''}
+        </Text>
       </View>
     </TouchableOpacity>
   );
@@ -87,6 +90,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 interface MarketplaceCardProps {
   product: Product;
   artisanLocation?: string;
+  sellerName?: string;
+  outOfStock?: boolean;
   onPress: (product: Product) => void;
   onFavorite?: (product: Product) => void;
 }
@@ -94,9 +99,13 @@ interface MarketplaceCardProps {
 export const MarketplaceCard: React.FC<MarketplaceCardProps> = ({
   product,
   artisanLocation,
+  sellerName,
+  outOfStock,
   onPress,
   onFavorite,
 }) => {
+  const primaryImageUrl = product.images?.find(img => img.isEnhanced)?.url || product.images?.[0]?.url;
+
   return (
     <TouchableOpacity
       style={[marketStyles.container, shadows.card]}
@@ -104,15 +113,20 @@ export const MarketplaceCard: React.FC<MarketplaceCardProps> = ({
       activeOpacity={0.7}
     >
       <View style={marketStyles.imageContainer}>
-        {product.images[0]?.url ? (
+        {primaryImageUrl ? (
           <Image
-            source={{ uri: product.images[0].url }}
+            source={getImageSource(primaryImageUrl)}
             style={marketStyles.image}
             resizeMode="cover"
           />
         ) : (
           <View style={[marketStyles.image, gridStyles.placeholder]}>
             <Ionicons name="image-outline" size={32} color={colors.textTertiary} />
+          </View>
+        )}
+        {outOfStock && (
+          <View style={marketStyles.oosOverlay}>
+            <Text style={marketStyles.oosText}>Out of Stock</Text>
           </View>
         )}
         {onFavorite && (
@@ -126,13 +140,19 @@ export const MarketplaceCard: React.FC<MarketplaceCardProps> = ({
       </View>
       <View style={marketStyles.info}>
         <Text style={marketStyles.name} numberOfLines={1}>{product.name}</Text>
+        {sellerName && (
+          <View style={marketStyles.sellerRow}>
+            <Ionicons name="storefront-outline" size={12} color={colors.textSecondary} />
+            <Text style={marketStyles.seller} numberOfLines={1}>{sellerName}</Text>
+          </View>
+        )}
         {artisanLocation && (
           <View style={marketStyles.locationRow}>
             <Ionicons name="location-outline" size={12} color={colors.textSecondary} />
             <Text style={marketStyles.location}>{artisanLocation}</Text>
           </View>
         )}
-        <Text style={marketStyles.price}>₹{product.price.toLocaleString('en-IN')}</Text>
+        <Text style={[marketStyles.price, outOfStock && marketStyles.priceMuted]}>₹{product.price.toLocaleString('en-IN')}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -263,5 +283,36 @@ const marketStyles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: colors.primary,
+  },
+  priceMuted: {
+    color: colors.textSecondary,
+  },
+  sellerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  seller: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginLeft: 2,
+    flex: 1,
+  },
+  oosOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(255,255,255,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  oosText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.error,
+    backgroundColor: '#fff',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    overflow: 'hidden',
   },
 });

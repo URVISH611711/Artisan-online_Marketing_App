@@ -69,13 +69,27 @@ def remove_background(
     # Handle pipeline output formats (PIL.Image or list/dict)
     rgba_img = None
     if isinstance(result, Image.Image):
-        rgba_img = result
+        # If it returns RGBA directly
+        if result.mode == "RGBA":
+            rgba_img = result
+        else:
+            rgba_img = original_img.convert("RGBA")
+            rgba_img.putalpha(result.convert("L"))
     elif isinstance(result, list) and len(result) > 0:
         item = result[0]
         if isinstance(item, dict):
-            rgba_img = item.get("image") or item.get("mask")
+            if "mask" in item:
+                mask = item["mask"].convert("L").resize(original_img.size, Image.LANCZOS)
+                rgba_img = original_img.convert("RGBA")
+                rgba_img.putalpha(mask)
+            elif "image" in item:
+                rgba_img = item["image"].convert("RGBA")
         elif isinstance(item, Image.Image):
-            rgba_img = item
+            if item.mode == "RGBA":
+                rgba_img = item
+            else:
+                rgba_img = original_img.convert("RGBA")
+                rgba_img.putalpha(item.convert("L"))
 
     if rgba_img is None:
         rgba_img = original_img.convert("RGBA")

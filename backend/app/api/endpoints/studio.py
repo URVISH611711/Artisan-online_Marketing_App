@@ -28,11 +28,15 @@ from app.schemas.studio import (
     StudioPublishRequest,
     StudioPublishResponse,
     BackgroundModeEnum,
+    AutoFillBackgroundRequest,
+    AutoFillBackgroundResponse,
+    BackgroundDetailsInput,
 )
 from app.services.image_enhance import validate_image
 from app.services.storage import save_image
 from app.services.job_manager import create_job, get_job, update_job, mark_job_failed, JobStatus
 from app.services.ai.background_modes import BackgroundMode, get_mode
+from app.services.nvidia import analyze_product_and_background, build_sd_inpainting_prompt
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -453,6 +457,51 @@ def _run_studio_regenerate_job(
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+@router.post("/auto-fill-background", response_model=AutoFillBackgroundResponse)
+async def auto_fill_background(
+    payload: AutoFillBackgroundRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Uses NVIDIA Kimi-K3 API to analyze product image & metadata,
+    generating structured background details and SD 1.5 inpainting prompt.
+    """
+    try:
+        image_source = payload.image_url or payload.image_base64
+        if not image_source:
+            raise HTTPException(status_code=400, detail="Either image_url or image_base64 is required.")
+
+        details_dict = payload.product_details.model_dump() if payload.product_details else {}
+        analysis = analyze_product_and_background(image_source, details_dict)
+
+        bg_res = analysis.get("background", {})
+        sd_prompt = build_sd_inpainting_prompt(bg_res, "")
+
+        bg_input = BackgroundDetailsInput(
+            style=bg_res.get("style", "Premium Artisan Studio"),
+            environment=bg_res.get("environment", "Warm handcrafted studio"),
+            surface=bg_res.get("surface", "Natural wooden tabletop"),
+            color_palette=bg_res.get("color_palette", ["warm beige", "cream"]),
+            lighting=bg_res.get("lighting", "Soft natural window light"),
+            shadow=bg_res.get("shadow", "Realistic soft contact shadow"),
+            mood=bg_res.get("mood", "Premium, authentic, handcrafted"),
+            composition=bg_res.get("composition", "Minimal commercial product photography"),
+        )
+
+        return AutoFillBackgroundResponse(
+            success=True,
+            product_analysis=analysis.get("product", {}),
+            background_details=bg_input,
+            suggested_sd_prompt=sd_prompt,
+        )
+    except Exception as e:
+        logger.error(f"Auto-fill background failed: {e}")
+        return AutoFillBackgroundResponse(
+            success=False,
+            error=str(e),
+        )
+
+
 @router.post("/process", response_model=StudioProcessResponse)
 async def studio_process(
     request: Request,
@@ -647,18 +696,12 @@ async def studio_publish(
     enhanced_urls = result.get("enhanced_urls", [])
     final_paths = result.get("final_paths", [])
 
-    for i, url in enumerate(original_urls):
-        db.add(ProductImage(
-            id=uuid.uuid4(),
-            product_id=product.id,
-            user_id=current_user.id,
-            url=url,
-            original_url=url,
-            image_type=ImageType.ORIGINAL,
-            is_enhanced=False,
-            sort_order=i,
-        ))
+    if payload.selected_image_urls is not None and len(payload.selected_image_urls) > 0:
+        sel_set = set(payload.selected_image_urls)
+        enhanced_urls = [u for u in enhanced_urls if u in sel_set]
+        original_urls = [u for u in original_urls if u in sel_set]
 
+    # Attach enhanced images first (so index 0 is primary final product image)
     for i, url in enumerate(enhanced_urls):
         path = final_paths[i] if i < len(final_paths) else None
         db.add(ProductImage(
@@ -671,7 +714,21 @@ async def studio_publish(
             storage_path=path,
             is_enhanced=True,
             is_primary=(i == 0),
-            sort_order=len(original_urls) + i,
+            sort_order=i,
+        ))
+
+    # Attach original camera photos second so they are retained separately
+    for i, url in enumerate(original_urls):
+        db.add(ProductImage(
+            id=uuid.uuid4(),
+            product_id=product.id,
+            user_id=current_user.id,
+            url=url,
+            original_url=url,
+            image_type=ImageType.ORIGINAL,
+            is_enhanced=False,
+            is_primary=False,
+            sort_order=len(enhanced_urls) + i,
         ))
 
     db.commit()

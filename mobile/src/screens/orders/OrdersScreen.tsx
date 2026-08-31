@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator }
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { OrdersStackParamList } from '../../navigation/types';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
-import { Header } from '../../components/layout/Header';
 import { OrderCard } from '../../components/order/OrderCard';
 import { EmptyState } from '../../components/states/StateScreens';
 import { colors } from '../../theme/colors';
@@ -16,8 +15,12 @@ import { useFocusEffect } from '@react-navigation/native';
 type Props = { navigation: NativeStackNavigationProp<OrdersStackParamList, 'OrdersList'> };
 
 type Filter = 'All' | 'New' | 'Processing' | 'Completed';
+// Every user is both buyer and seller on the SAME account. These two views read
+// the same underlying orders from opposite sides.
+type Mode = 'received' | 'purchases';
 
 export const OrdersScreen: React.FC<Props> = ({ navigation }) => {
+  const [mode, setMode] = useState<Mode>('received');
   const [filter, setFilter] = useState<Filter>('All');
   const [orders, setOrders] = useState<OrderData[]>([]);
   const [unread, setUnread] = useState(0);
@@ -25,55 +28,73 @@ export const OrdersScreen: React.FC<Props> = ({ navigation }) => {
 
   useFocusEffect(
     useCallback(() => {
+      let active = true;
       const load = async () => {
+        setLoading(true);
         try {
           const [ordersData, notifs] = await Promise.all([
-            fetchOrders(),
+            fetchOrders(mode === 'purchases' ? 'buyer' : 'seller'),
             fetchNotifications(),
           ]);
+          if (!active) return;
           setOrders(ordersData);
           setUnread(notifs.filter((n) => !n.read).length);
         } catch (err) {
           console.error('Orders load error:', err);
         } finally {
-          setLoading(false);
+          if (active) setLoading(false);
         }
       };
       load();
-    }, [])
+      return () => {
+        active = false;
+      };
+    }, [mode])
   );
 
-  const newCount = orders.filter((o) => o.status === 'PENDING' || o.status === 'pending').length;
+  const newCount = orders.filter((o) => o.status.toLowerCase() === 'pending').length;
 
   const filtered = orders.filter((o) => {
     const s = o.status.toLowerCase();
     if (filter === 'All') return true;
     if (filter === 'New') return s === 'pending';
     if (filter === 'Processing') return s === 'processing' || s === 'shipped' || s === 'accepted';
-    if (filter === 'Completed') return s === 'completed' || s === 'delivered' || s === 'cancelled';
+    if (filter === 'Completed') return s === 'completed' || s === 'delivered' || s === 'cancelled' || s === 'rejected';
     return true;
   });
 
-  // Map to Order type for OrderCard
-  const mapToOrder = (o: OrderData): Order => ({
-    id: o.id,
-    orderId: o.order_number,
-    productId: o.items?.[0]?.id || '',
-    productName: o.items?.[0]?.product_name_snapshot || 'Order',
-    quantity: o.items?.reduce((sum, i) => sum + i.quantity, 0) || 0,
-    pricePerUnit: o.items?.[0]?.unit_price || 0,
-    totalAmount: o.total_amount,
-    status: o.status.toLowerCase() as any,
-    buyerName: '',
-    buyerVerified: false,
-    timeline: o.timeline.map((t) => ({
-      label: t.status_label,
-      status: t.status_state as any,
-      timestamp: t.created_at,
-    })),
-    createdAt: o.created_at,
-    updatedAt: o.updated_at,
-  });
+  // Build the counterparty label for the card: the buyer sees who they bought
+  // FROM (seller), the seller sees who bought (buyer).
+  const counterparty = (o: OrderData): string => {
+    if (mode === 'received') return o.buyer_name || 'Buyer';
+    const names = Array.from(new Set((o.items || []).map((i) => i.seller_name).filter(Boolean))) as string[];
+    if (names.length === 0) return 'Seller';
+    return names.length === 1 ? names[0] : `${names[0]} +${names.length - 1}`;
+  };
+
+  const mapToOrder = (o: OrderData): Order => {
+    const first = o.items?.[0]?.product_name_snapshot || 'Order';
+    const extra = (o.items?.length || 0) - 1;
+    return {
+      id: o.id,
+      orderId: o.order_number,
+      productId: o.items?.[0]?.product_id || o.items?.[0]?.id || '',
+      productName: extra > 0 ? `${first} +${extra} more` : first,
+      quantity: o.items?.reduce((sum, i) => sum + i.quantity, 0) || 0,
+      pricePerUnit: o.items?.[0]?.unit_price || 0,
+      totalAmount: o.total_amount,
+      status: o.status.toLowerCase() as any,
+      buyerName: counterparty(o),
+      buyerVerified: false,
+      timeline: o.timeline.map((t) => ({
+        label: t.status_label,
+        status: t.status_state as any,
+        timestamp: t.created_at,
+      })),
+      createdAt: o.created_at,
+      updatedAt: o.updated_at,
+    };
+  };
 
   const TABS: { label: string; filter: Filter; badge?: number }[] = [
     { label: 'All', filter: 'All' },
@@ -81,6 +102,11 @@ export const OrdersScreen: React.FC<Props> = ({ navigation }) => {
     { label: 'Processing', filter: 'Processing' },
     { label: 'Completed', filter: 'Completed' },
   ];
+
+  const emptyCopy =
+    mode === 'received'
+      ? { title: 'No orders received', message: 'When someone buys one of your products, it appears here.' }
+      : { title: 'No purchases yet', message: 'Products you buy from other sellers appear here.' };
 
   return (
     <ScreenWrapper scrollable={false} padded={false}>
@@ -95,6 +121,25 @@ export const OrdersScreen: React.FC<Props> = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
+      {/* Buyer / seller view switch — same account, two perspectives */}
+      <View style={styles.segment}>
+        {([
+          { key: 'received' as Mode, label: 'Received Orders' },
+          { key: 'purchases' as Mode, label: 'My Purchases' },
+        ]).map((seg) => (
+          <TouchableOpacity
+            key={seg.key}
+            style={[styles.segmentBtn, mode === seg.key && styles.segmentBtnActive]}
+            onPress={() => {
+              setMode(seg.key);
+              setFilter('All');
+            }}
+          >
+            <Text style={[styles.segmentText, mode === seg.key && styles.segmentTextActive]}>{seg.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       {/* Filter tabs */}
       <View style={styles.tabBar}>
         {TABS.map((tab) => (
@@ -105,9 +150,7 @@ export const OrdersScreen: React.FC<Props> = ({ navigation }) => {
           >
             <Text style={[styles.tabText, filter === tab.filter && styles.tabTextActive]}>
               {tab.label}
-              {tab.badge ? (
-                <Text style={styles.tabBadge}> {tab.badge}</Text>
-              ) : null}
+              {tab.badge ? <Text style={styles.tabBadge}> {tab.badge}</Text> : null}
             </Text>
           </TouchableOpacity>
         ))}
@@ -118,7 +161,7 @@ export const OrdersScreen: React.FC<Props> = ({ navigation }) => {
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : filtered.length === 0 ? (
-        <EmptyState icon="receipt-outline" title="No orders yet" message="Your products are ready for buyers. Orders will appear here." />
+        <EmptyState icon="receipt-outline" title={emptyCopy.title} message={emptyCopy.message} />
       ) : (
         <FlatList
           data={filtered.map(mapToOrder)}
@@ -126,7 +169,15 @@ export const OrdersScreen: React.FC<Props> = ({ navigation }) => {
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
-            <OrderCard order={item} onPress={(o) => navigation.navigate('OrderDetail', { orderId: o.id })} />
+            <OrderCard
+              order={item}
+              onPress={(o) =>
+                navigation.navigate('OrderDetail', {
+                  orderId: o.id,
+                  role: mode === 'purchases' ? 'buyer' : 'seller',
+                })
+              }
+            />
           )}
         />
       )}
@@ -150,6 +201,23 @@ const styles = StyleSheet.create({
     width: 10, height: 10, borderRadius: 5,
     backgroundColor: colors.secondary,
   },
+  segment: {
+    flexDirection: 'row',
+    marginHorizontal: layout.screenPadding,
+    marginBottom: 4,
+    backgroundColor: colors.borderLight,
+    borderRadius: 10,
+    padding: 4,
+  },
+  segmentBtn: {
+    flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
+  },
+  segmentBtnActive: {
+    backgroundColor: colors.surface,
+    ...({ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 }),
+  },
+  segmentText: { fontSize: 14, color: colors.textSecondary, fontWeight: '600' },
+  segmentTextActive: { color: colors.primary },
   tabBar: {
     flexDirection: 'row', paddingHorizontal: layout.screenPadding,
     borderBottomWidth: 1, borderBottomColor: colors.borderLight,

@@ -15,7 +15,9 @@ import { layout } from '../../theme/spacing';
 interface InputProps extends TextInputProps {
   label?: string;
   error?: string;
+  icon?: keyof typeof Ionicons.glyphMap;
   prefix?: string;
+  leftIcon?: React.ReactNode;
   suffix?: React.ReactNode;
   containerStyle?: ViewStyle;
 }
@@ -23,7 +25,9 @@ interface InputProps extends TextInputProps {
 export const Input: React.FC<InputProps> = ({
   label,
   error,
+  icon,
   prefix,
+  leftIcon,
   suffix,
   containerStyle,
   style,
@@ -43,6 +47,8 @@ export const Input: React.FC<InputProps> = ({
           error && styles.inputError,
         ]}
       >
+        {icon && <View style={{ paddingLeft: 12, justifyContent: 'center' }}><Ionicons name={icon} size={20} color={colors.textSecondary} /></View>}
+        {leftIcon && <View style={{ marginLeft: 16 }}>{leftIcon}</View>}
         {prefix && (
           <View style={styles.prefixContainer}>
             <Text style={styles.prefix}>{prefix}</Text>

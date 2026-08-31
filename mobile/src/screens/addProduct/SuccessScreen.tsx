@@ -73,21 +73,21 @@ export const SuccessScreen: React.FC<Props> = ({ navigation, route }) => {
           <Ionicons name="checkmark-circle" size={80} color={colors.success} />
         </Animated.View>
 
-        <Text style={styles.title}>Product Published! 🎉</Text>
-        <Text style={styles.subtitle}>Buyers can now discover your craft</Text>
+        <Text style={styles.title}>Product Saved as Draft! 📝</Text>
+        <Text style={styles.subtitle}>Your product is saved in Drafts. You can view or publish it anytime from My Products.</Text>
       </View>
 
       <View style={styles.footer}>
         <Button
           title="View Product"
           onPress={() => navigation.getParent()?.navigate('Products')}
-          leftIcon={<Ionicons name="eye-outline" size={20} color={colors.surface} />}
+          icon="eye-outline"
         />
         <Button
           title="Share Product"
           onPress={() => {}}
           variant="outline"
-          leftIcon={<Ionicons name="share-outline" size={20} color={colors.textPrimary} />}
+          icon="share-outline"
           style={{ marginTop: 12 }}
         />
         <TouchableOpacity onPress={() => navigation.navigate('Camera')} style={styles.addAnotherBtn}>
@@ -104,9 +104,9 @@ const styles = StyleSheet.create({
   confettiDot: { position: 'absolute', width: 12, height: 12, borderRadius: 6, bottom: 0 },
   content: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: layout.screenPadding },
   iconBubble: { marginBottom: 24 },
-  title: { ...typography.h2, color: colors.textPrimary, textAlign: 'center', marginBottom: 12 },
-  subtitle: { ...typography.body1, color: colors.textSecondary, textAlign: 'center', marginBottom: 32 },
+  title: { ...typography.styles.heading, color: colors.textPrimary, textAlign: 'center', marginBottom: 12 },
+  subtitle: { ...typography.styles.body, color: colors.textSecondary, textAlign: 'center', marginBottom: 32 },
   footer: { paddingHorizontal: layout.screenPadding, paddingBottom: 32 },
   addAnotherBtn: { alignItems: 'center', paddingVertical: 20 },
-  addAnotherText: { ...typography.subtitle1, color: colors.primary, fontWeight: '700' },
+  addAnotherText: { ...typography.styles.title, color: colors.primary, fontWeight: '700' },
 });

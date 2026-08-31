@@ -177,6 +177,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
     letterSpacing: 0.8,
   },
+  header: { width: '100%', alignItems: 'center', marginBottom: rs(16) },
   title: {
     fontSize: rf(24),
     fontWeight: '800',

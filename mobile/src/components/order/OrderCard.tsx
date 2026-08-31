@@ -12,14 +12,25 @@ interface OrderCardProps {
 }
 
 export const OrderCard: React.FC<OrderCardProps> = ({ order, onPress }) => {
-  const statusConfig = {
-    new: { label: 'NEW ORDER', variant: 'warning' as const, color: colors.warning },
-    accepted: { label: 'ACCEPTED', variant: 'success' as const, color: colors.success },
-    processing: { label: 'PROCESSING', variant: 'info' as const, color: colors.primary },
-    shipped: { label: 'SHIPPED', variant: 'info' as const, color: colors.primary },
-    completed: { label: 'COMPLETED', variant: 'success' as const, color: colors.success },
-    cancelled: { label: 'CANCELLED', variant: 'error' as const, color: colors.error },
-  }[order.status];
+  // Keyed map with a safe fallback: order.status can be any backend value
+  // (pending/delivered/rejected/…). Indexing a fixed object literal used to
+  // crash for statuses that weren't listed.
+  const statusMap: Record<string, { label: string; variant: 'warning' | 'success' | 'info' | 'error' | 'default'; color: string }> = {
+    new: { label: 'NEW ORDER', variant: 'warning', color: colors.warning },
+    pending: { label: 'NEW ORDER', variant: 'warning', color: colors.warning },
+    accepted: { label: 'ACCEPTED', variant: 'success', color: colors.success },
+    processing: { label: 'PROCESSING', variant: 'info', color: colors.primary },
+    shipped: { label: 'SHIPPED', variant: 'info', color: colors.primary },
+    delivered: { label: 'DELIVERED', variant: 'success', color: colors.success },
+    completed: { label: 'COMPLETED', variant: 'success', color: colors.success },
+    cancelled: { label: 'CANCELLED', variant: 'error', color: colors.error },
+    rejected: { label: 'REJECTED', variant: 'error', color: colors.error },
+  };
+  const statusConfig = statusMap[order.status] || {
+    label: String(order.status || 'ORDER').toUpperCase(),
+    variant: 'default' as const,
+    color: colors.textSecondary,
+  };
 
   const formattedDate = new Date(order.createdAt).toLocaleDateString('en-IN', {
     month: 'short',

@@ -300,9 +300,10 @@ export const AIStudioScreen: React.FC<Props> = ({ navigation, route }) => {
 
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <Button 
-            title="Review & Publish" 
+            title="Review & Draft" 
             onPress={handleNext} 
-            rightIcon={<Ionicons name="arrow-forward" size={20} color={colors.surface} />}
+            icon="arrow-forward-outline"
+            iconPosition="right"
           />
           <Button
             title="Change Background"
@@ -333,26 +334,26 @@ const styles = StyleSheet.create({
   },
   processingImage: { width: '100%', height: '100%' },
   processingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.45)',
     alignItems: 'center', justifyContent: 'center',
   },
   processingInfo: { alignItems: 'center', gap: 10 },
   processingTitle: {
-    ...typography.h4, color: colors.textPrimary, textAlign: 'center',
+    ...typography.styles.heading, color: colors.textPrimary, textAlign: 'center',
   },
   processingMsg: {
-    ...typography.body1, color: colors.primary, textAlign: 'center', fontWeight: '500',
+    ...typography.styles.body, color: colors.primary, textAlign: 'center', fontWeight: '500',
   },
 
   // ── Error ───────────────────────────────
   errorContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
   errorTitle: {
-    ...typography.h3, color: colors.textPrimary,
+    ...typography.styles.subheading, color: colors.textPrimary,
     marginTop: 16, marginBottom: 10, textAlign: 'center',
   },
   errorMessage: {
-    ...typography.body1, color: colors.textSecondary, textAlign: 'center', lineHeight: 20,
+    ...typography.styles.body, color: colors.textSecondary, textAlign: 'center', lineHeight: 20,
   },
 
   // ── Result ──────────────────────────────
@@ -360,7 +361,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
     justifyContent: 'center', marginBottom: 14,
   },
-  successBadgeText: { ...typography.subtitle1, color: colors.success },
+  successBadgeText: { ...typography.styles.title, color: colors.success },
 
   toggleRow: {
     flexDirection: 'row', backgroundColor: colors.borderLight,
@@ -368,7 +369,7 @@ const styles = StyleSheet.create({
   },
   toggleBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   toggleActive: { backgroundColor: colors.surface },
-  toggleText: { ...typography.body2, color: colors.textSecondary, fontWeight: '500' },
+  toggleText: { ...typography.styles.bodySmall, color: colors.textSecondary, fontWeight: '500' },
   toggleTextActive: { color: colors.primary, fontWeight: '700' },
 
   resultImageBox: {

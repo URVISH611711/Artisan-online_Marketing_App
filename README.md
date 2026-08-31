@@ -62,32 +62,57 @@ npm install
 
 ---
 
+## 🌐 Multi-Device Architecture (LocalTunnel)
+
+```
+Multiple Physical Phones (iOS / Android / APK)
+              ↓
+     Artisan AI Expo App
+              ↓
+   LocalTunnel HTTPS Tunnel
+              ↓
+  FastAPI Backend (0.0.0.0:8000)
+              ↓
+   Supabase PostgreSQL DB & AI Models
+```
+
+---
+
 ## 🏃‍♂️ How to Run the App
 
-Whenever you want to start the app, you will need **two separate terminal windows**.
+For multi-device access across physical phones and emulators, use 3 terminal windows:
 
-### 1. Start the Backend Server
+### Terminal 1: Start FastAPI Backend
 ```powershell
-cd backend
-.\venv\Scripts\activate
-uvicorn app.main:app --reload --host 0.0.0.0
+cd u:\a1\Artisan\backend
+venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
-*The backend will run at `http://localhost:8000`. You can view the API documentation at `http://localhost:8000/docs`.*
+*The API runs at `http://0.0.0.0:8000`. Docs are at `http://localhost:8000/docs` and `/health`.*
 
-### 2. Start the Mobile App
-Open a new terminal window:
+### Terminal 2: Expose via LocalTunnel
 ```powershell
-cd mobile
+cd u:\a1\Artisan
+npx localtunnel --port 8000
+```
+*Copy the generated HTTPS URL (e.g. `https://fancy-cat-42.loca.lt`).*
+
+### Terminal 3: Start Mobile App
+Add your LocalTunnel URL to `mobile/.env`:
+```env
+EXPO_PUBLIC_API_URL=https://fancy-cat-42.loca.lt
+```
+Then launch Expo:
+```powershell
+cd u:\a1\Artisan\mobile
 npx expo start -c
 ```
-*Press `a` to open on an Android Emulator, `i` for an iOS simulator, or scan the QR code using the Expo Go app on your physical phone.*
+*Multiple physical phones running Expo Go or compiled Android APK can now access the app simultaneously via the single LocalTunnel URL.*
 
 ---
 
 ## 🧠 Note on the Local AI Studio
 The AI Product Studio uses the following local models:
 - **briaai/RMBG-1.4**: For highly accurate background removal.
-- **Qwen2.5-0.5B-Instruct**: Local LLM for analyzing product details and generating Stable Diffusion prompts.
 - **runwayml/stable-diffusion-inpainting**: Local image generation for professional studio backgrounds, optimized for 4GB VRAM.
 - **faster-whisper (Tiny)**: Local voice-to-text transcription.
 

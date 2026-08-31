@@ -32,6 +32,7 @@ export const RegistrationScreen: React.FC<Props> = ({ navigation }) => {
       id: 'artisan_001',
       phone: '+91 98765 43210',
       name,
+      email: '',
       role: 'artisan',
       language: 'en',
       voiceLanguage: 'hi',

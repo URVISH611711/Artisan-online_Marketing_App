@@ -3,6 +3,8 @@ from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
 
+from app.schemas.user import ArtisanProfileResponse
+
 
 class ProductImageResponse(BaseModel):
     id: UUID
@@ -10,6 +12,16 @@ class ProductImageResponse(BaseModel):
     is_enhanced: bool
     original_url: Optional[str] = None
     sort_order: int
+
+    class Config:
+        from_attributes = True
+
+
+class InventoryResponse(BaseModel):
+    available_quantity: int
+    reserved_quantity: int
+    sold_quantity: int
+    low_stock_threshold: int
 
     class Config:
         from_attributes = True
@@ -32,6 +44,8 @@ class ProductResponse(BaseModel):
     orders: int
     rating: Optional[float] = None
     images: List[ProductImageResponse] = []
+    inventory: Optional[InventoryResponse] = None
+    artisan: Optional[ArtisanProfileResponse] = None
     created_at: datetime
     updated_at: datetime
 
@@ -64,16 +78,11 @@ class ProductUpdate(BaseModel):
     price: Optional[float] = Field(None, gt=0)
     quantity: Optional[int] = Field(None, ge=0)
     status: Optional[str] = None
+    selected_image_ids: Optional[List[UUID]] = None
+    selected_image_urls: Optional[List[str]] = None
 
 
-class InventoryResponse(BaseModel):
-    available_quantity: int
-    reserved_quantity: int
-    sold_quantity: int
-    low_stock_threshold: int
 
-    class Config:
-        from_attributes = True
 
 
 class DashboardResponse(BaseModel):

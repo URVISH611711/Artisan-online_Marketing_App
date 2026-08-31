@@ -18,6 +18,9 @@ import { AddProductNavigator } from './AddProductNavigator';
 import { ProductsScreen } from '../screens/products/ProductsScreen';
 import { ProductDetailScreen } from '../screens/products/ProductDetailScreen';
 import { EditProductScreen } from '../screens/products/EditProductScreen';
+import { BuyerProductScreen } from '../screens/marketplace/BuyerProductScreen';
+import { CartScreen } from '../screens/marketplace/CartScreen';
+import { CheckoutScreen } from '../screens/marketplace/CheckoutScreen';
 
 import { OrdersScreen } from '../screens/orders/OrdersScreen';
 import { OrderDetailScreen } from '../screens/orders/OrderDetailScreen';
@@ -51,6 +54,9 @@ const ProductsStackScreen = () => (
     <ProductsStack.Screen name="ProductsList" component={ProductsScreen} />
     <ProductsStack.Screen name="ProductDetail" component={ProductDetailScreen} />
     <ProductsStack.Screen name="EditProduct" component={EditProductScreen} />
+    <ProductsStack.Screen name="BuyerProduct" component={BuyerProductScreen as any} />
+    <ProductsStack.Screen name="Cart" component={CartScreen} />
+    <ProductsStack.Screen name="Checkout" component={CheckoutScreen} />
   </ProductsStack.Navigator>
 );
 
@@ -141,9 +147,7 @@ export const MainTabNavigator: React.FC<{ onMicPress: () => void }> = ({ onMicPr
           name="Orders"
           component={OrdersStackScreen}
           options={{
-            tabBarIcon: ({ focused }) => (
-              <TabIcon name="receipt" focused={focused} label="Orders" badge={2} />
-            ),
+            tabBarIcon: ({ focused }) => <TabIcon name="receipt" focused={focused} label="Orders" />,
           }}
         />
         <Tab.Screen

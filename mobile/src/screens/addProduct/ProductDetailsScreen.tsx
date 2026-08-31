@@ -7,7 +7,9 @@ import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { AddProductStackParamList } from '../../navigation/types';
 import { Button, Input } from '../../components/ui';
+import { Header } from '../../components/layout/Header';
 import { useDraftStore } from '../../store/useDraftStore';
+import { autoDescribeProduct } from '../../services/api';
 
 type Props = NativeStackScreenProps<AddProductStackParamList, 'ProductDetails'>;
 
@@ -21,6 +23,26 @@ export const ProductDetailsScreen: React.FC<Props> = ({ navigation, route }) => 
   const [color, setColor] = useState('');
   const [price, setPrice] = useState('');
   const [craftType, setCraftType] = useState('');
+  const [isAutoFilling, setIsAutoFilling] = useState(false);
+
+  const handleAutoFill = async () => {
+    if (!imageUris || imageUris.length === 0) return;
+    setIsAutoFilling(true);
+    try {
+      const data = await autoDescribeProduct(imageUris[0]);
+      if (data) {
+        if (data.name) setName(data.name);
+        if (data.description) setDescription(data.description);
+        if (data.material) setMaterial(data.material);
+        if (data.color) setColor(data.color);
+        if (data.craft_type) setCraftType(data.craft_type);
+      }
+    } catch (e) {
+      console.error("Auto-fill failed", e);
+    } finally {
+      setIsAutoFilling(false);
+    }
+  };
 
   const handleNext = () => {
     if (!name.trim()) return; // Validation: name required
@@ -47,16 +69,7 @@ export const ProductDetailsScreen: React.FC<Props> = ({ navigation, route }) => 
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onPress={() => navigation.goBack()}
-          leftIcon={<Ionicons name="arrow-back" size={24} color={colors.textPrimary} />}
-        />
-        <Text style={styles.headerTitle}>Product Details</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <Header title="Product Details" onBack={() => navigation.goBack()} />
 
       <KeyboardAvoidingView 
         style={styles.keyboardAvoid} 
@@ -74,7 +87,18 @@ export const ProductDetailsScreen: React.FC<Props> = ({ navigation, route }) => 
             </View>
           )}
 
-          <Text style={styles.sectionTitle}>Basic Info</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Basic Info</Text>
+            <Button 
+              title="✨ Auto-fill with AI" 
+              variant="secondary" 
+              size="sm" 
+              fullWidth={false}
+              onPress={handleAutoFill}
+              loading={isAutoFilling}
+              disabled={isAutoFilling}
+            />
+          </View>
           
           <View style={styles.formGroup}>
             <Input
@@ -139,7 +163,7 @@ export const ProductDetailsScreen: React.FC<Props> = ({ navigation, route }) => 
           onPress={handleNext}
           disabled={!name.trim()}
           fullWidth
-          rightIcon={<Ionicons name="arrow-forward" size={20} color={colors.surface} />}
+          icon="arrow-forward-outline"
         />
       </View>
     </SafeAreaView>
@@ -164,7 +188,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   headerTitle: {
-    ...typography.h3,
+    ...typography.styles.heading,
     color: colors.textPrimary,
   },
   content: {
@@ -201,12 +225,12 @@ const styles = StyleSheet.create({
     borderColor: colors.background,
   },
   imageCountText: {
-    ...typography.caption,
+    ...typography.styles.caption,
     fontWeight: 'bold',
     color: colors.surface,
   },
   sectionTitle: {
-    ...typography.h4,
+    ...typography.styles.title,
     color: colors.textPrimary,
     marginBottom: 16,
   },
@@ -218,8 +242,9 @@ const styles = StyleSheet.create({
     height: 40,
   },
   footer: {
-    padding: 24,
+    paddingHorizontal: 24,
     paddingTop: 16,
+    paddingBottom: 24,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.background,

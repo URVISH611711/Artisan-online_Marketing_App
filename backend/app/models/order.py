@@ -23,7 +23,7 @@ class Order(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
 
     order_number: Mapped[str] = mapped_column(String(50), unique=True, index=True)
     buyer_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), index=True)
-    artisan_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), index=True)
+    artisan_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), index=True, nullable=True)
     
     total_amount: Mapped[float] = mapped_column(Numeric(10, 2))
     shipping_address: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -33,7 +33,7 @@ class Order(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     payment_status: Mapped[str] = mapped_column(String(50), default="pending")
     
     buyer: Mapped["User"] = relationship("User", foreign_keys=[buyer_id])
-    artisan: Mapped["User"] = relationship("User", foreign_keys=[artisan_id])
+    artisan: Mapped[Optional["User"]] = relationship("User", foreign_keys=[artisan_id])
     items: Mapped[List["OrderItem"]] = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
     timeline: Mapped[List["OrderTimeline"]] = relationship("OrderTimeline", back_populates="order", cascade="all, delete-orphan")
 
@@ -42,6 +42,8 @@ class OrderItem(Base, UUIDMixin, TimestampMixin):
 
     order_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("orders.id", ondelete="CASCADE"), index=True)
     product_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("products.id", ondelete="SET NULL"), nullable=True)
+    buyer_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    seller_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
     
     product_name_snapshot: Mapped[str] = mapped_column(String(255))
     product_image_snapshot: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
@@ -52,6 +54,8 @@ class OrderItem(Base, UUIDMixin, TimestampMixin):
     
     order: Mapped["Order"] = relationship("Order", back_populates="items")
     product: Mapped[Optional["Product"]] = relationship("Product")
+    buyer: Mapped["User"] = relationship("User", foreign_keys=[buyer_id])
+    seller: Mapped["User"] = relationship("User", foreign_keys=[seller_id])
 
 class OrderTimeline(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "order_timeline"

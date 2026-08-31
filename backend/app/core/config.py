@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     SMTP_USERNAME: Optional[str] = None
     SMTP_PASSWORD: Optional[str] = None
 
+    # NVIDIA API
+    NVIDIA_API_KEY: Optional[str] = None
+
     # Local uploads fallback
     UPLOADS_DIR: str = "uploads"
 
@@ -44,9 +47,8 @@ class Settings(BaseSettings):
     SD_STEPS: int = 20
     SD_GUIDANCE: float = 7.5
 
-    # Vision sidecar (Qwen2.5-VL — separate venv on port 8001).
-    VISION_SERVICE_URL: str = "http://127.0.0.1:8001"
-    VISION_TIMEOUT: int = 120  # seconds to wait for /analyze response
+    # NVIDIA API key
+    NVIDIA_API_KEY: str = "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"
 
     # Whether to run Real-ESRGAN upscaling after compositing (CPU, slow).
     ENABLE_UPSCALE: bool = False

@@ -19,6 +19,8 @@ async function apiFetch<T>(endpoint: string, options: FetchOptions = {}): Promis
   const { method = 'GET', body, auth = true } = options;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'bypass-tunnel-reminder': 'true',
+    'Bypass-Tunnel-Reminder': 'true',
   };
 
   if (auth) {
@@ -29,11 +31,17 @@ async function apiFetch<T>(endpoint: string, options: FetchOptions = {}): Promis
   }
 
   const url = `${API_URL}${endpoint}`;
-  const res = await fetch(url, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch (err: any) {
+    console.error(`[API Network Error] Could not reach ${url}:`, err);
+    throw new Error('Backend unavailable. Please check your network connection or LocalTunnel status.');
+  }
 
   if (!res.ok) {
     if (res.status === 401) {
@@ -53,6 +61,31 @@ async function apiFetch<T>(endpoint: string, options: FetchOptions = {}): Promis
   if (res.status === 204) return undefined as T;
 
   return res.json();
+}
+
+/**
+ * Health check helper to verify backend + LocalTunnel connectivity.
+ */
+export async function checkBackendHealth(): Promise<{ ok: boolean; message: string }> {
+  try {
+    const healthUrl = `${API_URL.replace(/\/api\/v1\/?$/, '')}/health`;
+    const res = await fetch(healthUrl, {
+      method: 'GET',
+      headers: {
+        'bypass-tunnel-reminder': 'true',
+        'Bypass-Tunnel-Reminder': 'true',
+      },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.status === 'ok') {
+        return { ok: true, message: 'Backend connected' };
+      }
+    }
+    return { ok: false, message: 'Backend returned unhealthy response' };
+  } catch (e: any) {
+    return { ok: false, message: 'Backend unavailable. Please check LocalTunnel or server.' };
+  }
 }
 
 // ─── Profile ─────────────────────────────────────────────────────
@@ -113,6 +146,21 @@ export interface ProductData {
   orders: number;
   rating?: number;
   images: { id: string; url: string; is_enhanced: boolean; sort_order: number }[];
+  inventory?: {
+    available_quantity: number;
+    reserved_quantity: number;
+    sold_quantity: number;
+    low_stock_threshold: number;
+  };
+  artisan?: {
+    user_id: string;
+    business_name: string;
+    craft_type: string;
+    location: string;
+    city?: string;
+    state: string;
+    profile_image?: string;
+  };
   created_at: string;
   updated_at: string;
 }
@@ -120,6 +168,26 @@ export interface ProductData {
 export async function fetchProducts(statusFilter?: string): Promise<ProductData[]> {
   const qs = statusFilter ? `?status=${statusFilter}` : '';
   return apiFetch<ProductData[]>(`/products/${qs}`);
+}
+
+export async function fetchMarketplaceProducts(params?: { search?: string, category?: string, skip?: number, limit?: number }): Promise<ProductData[]> {
+  const qsParams = new URLSearchParams();
+  if (params?.search) qsParams.append('search', params.search);
+  if (params?.category) qsParams.append('category', params.category);
+  if (params?.skip !== undefined) qsParams.append('skip', params.skip.toString());
+  if (params?.limit !== undefined) qsParams.append('limit', params.limit.toString());
+  const qs = qsParams.toString() ? `?${qsParams.toString()}` : '';
+  // Authenticated so the backend can exclude the viewer's OWN products from
+  // the marketplace feed (you never buy from yourself).
+  return apiFetch<ProductData[]>(`/products/marketplace${qs}`, { auth: true });
+}
+
+export async function fetchMarketplaceCategories(): Promise<string[]> {
+  return apiFetch<string[]>('/products/categories', { auth: false });
+}
+
+export async function checkoutCart(data: { items: {product_id: string, quantity: number}[]; shipping_address: string }): Promise<any> {
+  return apiFetch<any>('/orders/checkout', { method: 'POST', body: data });
 }
 
 export async function fetchProduct(id: string): Promise<ProductData> {
@@ -138,19 +206,19 @@ export async function deleteProduct(id: string): Promise<void> {
   return apiFetch<void>(`/products/${id}`, { method: 'DELETE' });
 }
 
-export async function fetchMarketplaceProducts(search?: string): Promise<ProductData[]> {
-  const qs = search ? `?search=${encodeURIComponent(search)}` : '';
-  return apiFetch<ProductData[]>(`/products/marketplace${qs}`, { auth: false });
-}
-
 // ─── Orders ──────────────────────────────────────────────────────
 export interface OrderItemData {
   id: string;
+  product_id?: string;
+  buyer_id?: string;
+  seller_id?: string;
   product_name_snapshot: string;
   product_image_snapshot?: string;
   quantity: number;
   unit_price: number;
   subtotal: number;
+  seller_name?: string;
+  buyer_name?: string;
 }
 
 export interface OrderTimelineData {
@@ -170,16 +238,20 @@ export interface OrderData {
   expected_delivery?: string;
   items: OrderItemData[];
   timeline: OrderTimelineData[];
+  buyer_name?: string;
+  role?: 'buyer' | 'seller';
   created_at: string;
   updated_at: string;
 }
 
-export async function fetchOrders(): Promise<OrderData[]> {
-  return apiFetch<OrderData[]>('/orders/');
+/** role='seller' → orders received for my products; role='buyer' → my purchases. */
+export async function fetchOrders(role: 'buyer' | 'seller' = 'seller'): Promise<OrderData[]> {
+  return apiFetch<OrderData[]>(`/orders/?role=${role}`);
 }
 
-export async function fetchOrder(id: string): Promise<OrderData> {
-  return apiFetch<OrderData>(`/orders/${id}`);
+export async function fetchOrder(id: string, role?: 'buyer' | 'seller'): Promise<OrderData> {
+  const qs = role ? `?role=${role}` : '';
+  return apiFetch<OrderData>(`/orders/${id}${qs}`);
 }
 
 export async function updateOrderStatus(id: string, status: string): Promise<OrderData> {
@@ -302,6 +374,7 @@ export async function enhanceProductImages(
       if (options.custom_prompt) formData.append('custom_prompt', options.custom_prompt);
 
       xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.setRequestHeader('bypass-tunnel-reminder', 'true');
 
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
@@ -337,10 +410,25 @@ export async function regenerateBackground(jobId: string, backgroundMode?: strin
   });
 }
 
-export async function publishStudioProduct(jobId: string, productDetails: any) {
+export async function publishStudioProduct(jobId: string, productDetails: any, selectedImageUrls?: string[]) {
   return apiFetch('/ai/studio/publish', {
     method: 'POST',
-    body: { job_id: jobId, product_details: productDetails },
+    body: { job_id: jobId, product_details: productDetails, selected_image_urls: selectedImageUrls },
+  });
+}
+
+export async function autoFillBackgroundDetails(imageUri: string, productDetails: any) {
+  let imageBase64 = imageUri;
+  if (imageUri.startsWith('file://') || imageUri.startsWith('ph://')) {
+    const FileSystem = require('expo-file-system');
+    imageBase64 = await FileSystem.readAsStringAsync(imageUri, { encoding: FileSystem.EncodingType.Base64 });
+  }
+  return apiFetch('/ai/studio/auto-fill-background', {
+    method: 'POST',
+    body: {
+      image_base64: imageBase64,
+      product_details: productDetails,
+    },
   });
 }
 
@@ -359,11 +447,51 @@ export async function transcribeVoice(audioUri: string): Promise<{ success: bool
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `${API_URL}/ai/voice/transcribe`);
     xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.setRequestHeader('bypass-tunnel-reminder', 'true');
     xhr.onload = () => {
       try {
         const data = JSON.parse(xhr.responseText);
         if (xhr.status >= 200 && xhr.status < 300) resolve(data);
         else reject(new Error(data?.detail || 'Transcription failed'));
+      } catch {
+        reject(new Error('Invalid response'));
+      }
+    };
+    xhr.onerror = () => reject(new Error('Network error'));
+    xhr.send(formData);
+  });
+}
+
+
+export async function autoDescribeProduct(imageUri: string): Promise<any> {
+  const token = useAuthStore.getState().token;
+  const formData = new FormData();
+  
+  const filename = imageUri.split('/').pop() || 'image.jpg';
+  const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
+  const mimeType =
+    ext === 'png' ? 'image/png' :
+    ext === 'webp' ? 'image/webp' :
+    'image/jpeg';
+
+  formData.append('image', {
+    uri: imageUri,
+    name: filename,
+    type: mimeType,
+  } as any);
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${API_URL}/products/auto-describe`);
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.onload = () => {
+      try {
+        const data = JSON.parse(xhr.responseText);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(data.data || {});
+        } else {
+          reject(new Error(data?.detail || 'Auto-describe failed'));
+        }
       } catch {
         reject(new Error('Invalid response'));
       }

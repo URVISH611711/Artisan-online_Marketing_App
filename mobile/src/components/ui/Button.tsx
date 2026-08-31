@@ -13,7 +13,7 @@ import { layout } from '../../theme/spacing';
 import { Ionicons } from '@expo/vector-icons';
 
 interface ButtonProps {
-  title: string;
+  title?: string;
   onPress: () => void;
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
   size?: 'sm' | 'md' | 'lg';
