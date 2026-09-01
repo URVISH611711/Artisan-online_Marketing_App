@@ -35,7 +35,7 @@ function getApiUrl(): string {
   }
 
   // 3. Hardcoded LAN fallback
-  resolvedUrl = 'http://10.53.75.28:8000/api/v1';
+  resolvedUrl = 'http://10.165.153.169:8000/api/v1';
   return resolvedUrl;
 }
 

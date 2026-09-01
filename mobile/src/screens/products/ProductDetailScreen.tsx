@@ -215,6 +215,16 @@ export const ProductDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         {statusKey === 'live' && (
           <Button title="Boost Product" onPress={() => {}} icon="trending-up-outline" iconPosition="right" />
         )}
+        {/* Smart Price — AI-powered pricing from product detail */}
+        <TouchableOpacity
+          style={styles.smartPriceBtn}
+          onPress={() => navigation.navigate('SmartPriceAnalysis', { productId: product.id })}
+          activeOpacity={0.85}
+          accessibilityLabel="Smart Price — get AI pricing suggestions"
+        >
+          <Ionicons name="sparkles" size={16} color={colors.secondary} />
+          <Text style={styles.smartPriceBtnText}>✨ Smart Price</Text>
+        </TouchableOpacity>
         <Button title="Edit Product" onPress={() => navigation.navigate('EditProduct', { productId: product.id })} variant="outline" style={{ marginTop: 10 }} />
       </View>
     </ScreenWrapper>
@@ -250,4 +260,17 @@ const styles = StyleSheet.create({
   keyword: { backgroundColor: '#EBF5FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
   keywordText: { fontSize: 13, color: colors.primary, fontWeight: '500' },
   footer: { paddingHorizontal: layout.screenPadding, paddingBottom: 28, paddingTop: 8, backgroundColor: colors.background },
+  smartPriceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1.5,
+    borderColor: colors.secondary,
+    borderRadius: 10,
+    paddingVertical: 11,
+    marginTop: 10,
+    backgroundColor: colors.secondary + '10',
+  },
+  smartPriceBtnText: { fontSize: 14, fontWeight: '700', color: colors.secondary },
 });

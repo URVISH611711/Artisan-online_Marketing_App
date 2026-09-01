@@ -14,6 +14,8 @@ import { FloatingMicButton } from '../components/layout/FloatingMicButton';
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { NotificationsScreen } from '../screens/notifications/NotificationsScreen';
 import { AddProductNavigator } from './AddProductNavigator';
+import { SmartPricePickerScreen } from '../screens/pricing/SmartPricePickerScreen';
+import { SmartPriceAnalysisScreen } from '../screens/pricing/SmartPriceAnalysisScreen';
 
 import { ProductsScreen } from '../screens/products/ProductsScreen';
 import { ProductDetailScreen } from '../screens/products/ProductDetailScreen';
@@ -46,6 +48,8 @@ const HomeStackScreen = () => (
     <HomeStack.Screen name="HomeMain" component={HomeScreen} />
     <HomeStack.Screen name="Notifications" component={NotificationsScreen} />
     <HomeStack.Screen name="AddProduct" component={AddProductNavigator} />
+    <HomeStack.Screen name="SmartPricePicker" component={SmartPricePickerScreen} />
+    <HomeStack.Screen name="SmartPriceAnalysis" component={SmartPriceAnalysisScreen} />
   </HomeStack.Navigator>
 );
 
@@ -57,6 +61,7 @@ const ProductsStackScreen = () => (
     <ProductsStack.Screen name="BuyerProduct" component={BuyerProductScreen as any} />
     <ProductsStack.Screen name="Cart" component={CartScreen} />
     <ProductsStack.Screen name="Checkout" component={CheckoutScreen} />
+    <ProductsStack.Screen name="SmartPriceAnalysis" component={SmartPriceAnalysisScreen} />
   </ProductsStack.Navigator>
 );
 

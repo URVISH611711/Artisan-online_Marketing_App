@@ -164,6 +164,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
             style={[styles.quickCard, shadows.card]}
             activeOpacity={0.85}
             accessibilityLabel="My Products"
+            onPress={() => navigation.getParent()?.navigate('Products', { screen: 'ProductsList' })}
           >
             <Ionicons name="grid-outline" size={rs(26)} color={colors.primary} />
             <Text style={styles.quickTitle}>My Products</Text>
@@ -173,10 +174,11 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
             style={[styles.quickCard, shadows.card]}
             activeOpacity={0.85}
             accessibilityLabel="Smart Pricing"
+            onPress={() => navigation.navigate('SmartPricePicker')}
           >
             <Ionicons name="analytics-outline" size={rs(26)} color={colors.secondary} />
             <Text style={styles.quickTitle}>Smart Pricing</Text>
-            <Text style={styles.quickSub}>Market trends</Text>
+            <Text style={styles.quickSub}>AI-powered</Text>
           </TouchableOpacity>
         </View>
 
