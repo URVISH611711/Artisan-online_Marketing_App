@@ -1,5 +1,6 @@
 import requests
 import json
+# Trigger hot reload
 import re
 import logging
 from typing import Dict, Any
@@ -206,3 +207,193 @@ def build_sd_inpainting_prompt(bg_details: dict, user_instructions: str = "") ->
     if user_instructions and user_instructions.strip():
         base += f" {user_instructions.strip()}"
     return base
+
+
+# ── Multilingual Auto-Cataloger ────────────────────────────────────────────────
+
+# llama-3.2-11b-vision is the model that actually responds quickly on this key
+# (Kimi-K3 reliably read-times-out even at 90s). It handles both the text-only
+# transcript case and the transcript+image cross-check case.
+CATALOG_MODEL = "meta/llama-3.2-11b-vision-instruct"
+CATALOG_FALLBACK_MODEL = "meta/llama-3.2-11b-vision-instruct"
+
+# Returned when the API is unavailable or the response can't be parsed.
+# Every field is null/empty so the artisan never sees invented data.
+_EMPTY_CATALOG = {
+    "extracted": {
+        "name": None, "material": None, "color": None, "craft_type": None,
+        "price": None, "dimensions": None, "origin": None,
+        "confidence": {},
+    },
+    "translations": {
+        "en": {"name": None, "description": None, "short_description": None},
+        "hi": {"name": None, "description": None, "short_description": None},
+    },
+    "seo": {"title": None, "meta_description": None, "keywords": [], "tags": []},
+    "image_check": {"mismatch": False, "message": None},
+}
+
+
+def _empty_catalog() -> Dict[str, Any]:
+    import copy
+    return copy.deepcopy(_EMPTY_CATALOG)
+
+
+CATALOG_SYSTEM_PROMPT = """You are a product cataloging assistant for an Indian artisan marketplace.
+An artisan has described one of their handmade products by voice, in their own language.
+You are given the transcript (and possibly a photo of the product).
+
+Your job is to turn the description into a structured, bilingual product catalog entry.
+
+ABSOLUTE RULES — follow every one:
+1. NEVER invent product facts. If a fact was not stated (or clearly visible in the image),
+   set that field to null. Do NOT guess a material, colour, size, price or origin.
+2. Preserve regional and craft terminology exactly (e.g. "Patola", "Bandhani", "Warli",
+   "Kutch", "Meenakari"). Do NOT translate craft names into generic English words.
+3. The English description must be professional, fluent marketplace copy.
+4. The Hindi description must read naturally to a native Hindi speaker — write it as a Hindi
+   speaker would, NOT a word-for-word translation of the English.
+5. SEO must be genuinely useful: real, relevant search terms. Do NOT keyword-stuff or repeat.
+6. If a photo is provided and it clearly contradicts the spoken description, set
+   image_check.mismatch=true and explain briefly in image_check.message. Do NOT change any
+   field to match the image — only warn.
+7. For every extracted fact, give a confidence score 0.0-1.0 in "confidence" (how sure you are
+   the value is correct and actually stated). Missing/null fields get 0.
+
+Return ONLY valid raw JSON (no markdown fences) with EXACTLY this structure:
+{
+  "extracted": {
+    "name": string|null, "material": string|null, "color": string|null,
+    "craft_type": string|null, "price": number|null, "dimensions": string|null,
+    "origin": string|null,
+    "confidence": { "<field>": 0.0-1.0 }
+  },
+  "translations": {
+    "en": { "name": string, "description": string, "short_description": string },
+    "hi": { "name": string, "description": string, "short_description": string }
+  },
+  "seo": { "title": string, "meta_description": string, "keywords": [string], "tags": [string] },
+  "image_check": { "mismatch": boolean, "message": string|null }
+}
+"""
+
+
+def generate_catalog(transcript: str, language: str = "auto", image_source: str | None = None, existing_description: str | None = None) -> Dict[str, Any]:
+    """
+    Turn an artisan's voice-note transcript into a structured bilingual catalog entry
+    (extracted facts + EN/HI copy + SEO) using the NVIDIA chat API.
+
+    Never fabricates: on API failure or unparseable output, returns an empty skeleton
+    with null fields so the caller/artisan is never shown invented data.
+    """
+    if not transcript or not transcript.strip():
+        return _empty_catalog()
+
+    api_key = settings.NVIDIA_API_KEY or DEFAULT_KEY
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Accept": "application/json",
+    }
+
+    user_text = (
+        f"Detected/declared language of the transcript: {language}.\n"
+        f"Artisan's spoken product description (transcript):\n\"\"\"\n{transcript.strip()}\n\"\"\"\n"
+    )
+    
+    if existing_description and existing_description.strip():
+        user_text += f"\nPrevious Product Description (merge and polish with transcript):\n\"\"\"\n{existing_description.strip()}\n\"\"\"\n"
+
+    user_text += "\nProduce the JSON catalog entry now."
+
+    content: list = [{"type": "text", "text": user_text}]
+    
+    models = []
+    if image_source:
+        content.append({"type": "image_url", "image_url": _format_image_payload(image_source)})
+        models = ["meta/llama-3.2-11b-vision-instruct"]
+    else:
+        # If no image is provided, use a pure text model which is much more reliable for JSON
+        models = ["meta/llama-3.3-70b-instruct", "meta/llama-3.2-11b-vision-instruct"]
+
+    for model_name in models:
+        payload = {
+            "messages": [
+                {"role": "system", "content": CATALOG_SYSTEM_PROMPT},
+                {"role": "user", "content": content},
+            ],
+            "model": model_name,
+            "max_tokens": 2000,
+            "temperature": 0.4,
+        }
+        # Kimi-K3 is a heavy reasoning model and can be slow to first byte, so allow a
+        # generous read window (connect stays short) and retry once on a transient timeout.
+        for attempt in range(2):
+            try:
+                logger.info(
+                    f"[NVIDIA] Generating catalog via {model_name} "
+                    f"(image={'yes' if image_source else 'no'}, attempt={attempt + 1})..."
+                )
+                response = requests.post(
+                    INVOKE_URL, headers=headers, json=payload, timeout=(10, 120)
+                )
+                response.raise_for_status()
+                data = response.json()
+                if "choices" in data and len(data["choices"]) > 0:
+                    raw = data["choices"][0]["message"].get("content", "")
+                    json_match = re.search(r'\{.*\}', raw, re.DOTALL)
+                    candidate = json_match.group(0) if json_match else raw.strip()
+                    if candidate:
+                        parsed = json.loads(candidate)
+                        if isinstance(parsed, dict) and "translations" in parsed:
+                            return _normalize_catalog(parsed)
+                # Got a response but no usable JSON — no point retrying the same model.
+                logger.warning(f"[NVIDIA] Catalog model {model_name} returned no usable JSON.")
+                break
+            except requests.exceptions.Timeout as e:
+                logger.warning(
+                    f"[NVIDIA] Catalog model {model_name} timed out "
+                    f"(attempt {attempt + 1}/2): {e}."
+                )
+                if attempt == 0:
+                    continue  # retry once before falling back
+                logger.warning(f"[NVIDIA] Giving up on {model_name}; trying fallback if available.")
+                break
+            except Exception as e:
+                logger.warning(f"[NVIDIA] Catalog model {model_name} failed: {e}. Trying fallback if available.")
+                break
+
+    logger.error("[NVIDIA] Catalog generation failed for all models; returning empty skeleton.")
+    return _empty_catalog()
+
+
+def _normalize_catalog(parsed: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge the model output onto the empty skeleton so all keys always exist."""
+    out = _empty_catalog()
+    extracted = parsed.get("extracted") or {}
+    for k in ("name", "material", "color", "craft_type", "price", "dimensions", "origin"):
+        if k in extracted:
+            out["extracted"][k] = extracted[k]
+    if isinstance(extracted.get("confidence"), dict):
+        out["extracted"]["confidence"] = extracted["confidence"]
+
+    tr = parsed.get("translations") or {}
+    for lang in ("en", "hi"):
+        block = tr.get(lang) or {}
+        if isinstance(block, dict):
+            for k in ("name", "description", "short_description"):
+                if block.get(k) is not None:
+                    out["translations"][lang][k] = block[k]
+
+    seo = parsed.get("seo") or {}
+    if isinstance(seo, dict):
+        out["seo"]["title"] = seo.get("title")
+        out["seo"]["meta_description"] = seo.get("meta_description")
+        out["seo"]["keywords"] = seo.get("keywords") or []
+        out["seo"]["tags"] = seo.get("tags") or []
+
+    ic = parsed.get("image_check") or {}
+    if isinstance(ic, dict):
+        out["image_check"]["mismatch"] = bool(ic.get("mismatch", False))
+        out["image_check"]["message"] = ic.get("message")
+
+    return out

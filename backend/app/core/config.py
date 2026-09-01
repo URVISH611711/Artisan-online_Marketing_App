@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     # NVIDIA API
     NVIDIA_API_KEY: Optional[str] = None
 
+    # Sarvam AI (cloud speech-to-text for Indic languages)
+    SARVAM_API: Optional[str] = None
+
     # Local uploads fallback
     UPLOADS_DIR: str = "uploads"
 

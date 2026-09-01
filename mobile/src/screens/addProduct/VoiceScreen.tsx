@@ -11,7 +11,7 @@ import { Button } from '../../components/ui/Button';
 import { ProgressStepper } from '../../components/layout/ProgressStepper';
 import { useDraftStore } from '../../store/useDraftStore';
 import { Ionicons } from '@expo/vector-icons';
-import { useAudioRecorder, AudioModule } from 'expo-audio';
+import { useAudioRecorder, AudioModule, setAudioModeAsync, RecordingPresets } from 'expo-audio';
 
 type Props = { navigation: NativeStackNavigationProp<AddProductStackParamList, 'Voice'> };
 
@@ -37,7 +37,7 @@ export const VoiceScreen: React.FC<Props> = ({ navigation }) => {
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
   const { updateDraft } = useDraftStore();
 
-  const audioRecorder = useAudioRecorder({} as any);
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
   // Request permissions on mount
   useEffect(() => {
@@ -45,6 +45,13 @@ export const VoiceScreen: React.FC<Props> = ({ navigation }) => {
       const status = await AudioModule.requestRecordingPermissionsAsync();
       if (!status.granted) {
         console.warn('Microphone permission not granted');
+        return;
+      }
+      // Without allowsRecording the recorder captures nothing on iOS/Android.
+      try {
+        await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
+      } catch (e) {
+        console.warn('Audio mode setup failed:', e);
       }
     })();
   }, []);
@@ -82,7 +89,13 @@ export const VoiceScreen: React.FC<Props> = ({ navigation }) => {
         }
       }
     } else {
-      await audioRecorder.record();
+      try {
+        // Must prepare before every recording, or record() is a no-op.
+        await audioRecorder.prepareToRecordAsync();
+        audioRecorder.record();
+      } catch (err) {
+        console.warn('Could not start recording:', err);
+      }
     }
   };
 

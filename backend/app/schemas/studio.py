@@ -47,6 +47,13 @@ class ProductDetailsInput(BaseModel):
     intended_use: Optional[str] = None
     target_customer: Optional[str] = None
     style: Optional[str] = None
+    
+    # New AI-enriched fields passed from BoostProductScreen
+    length: Optional[float] = None
+    width: Optional[float] = None
+    diameter: Optional[float] = None
+    seo: Optional[Dict[str, Any]] = None
+    translations: Optional[Dict[str, Any]] = None
 
     @field_validator("name", mode="before")
     def validate_name(cls, v):

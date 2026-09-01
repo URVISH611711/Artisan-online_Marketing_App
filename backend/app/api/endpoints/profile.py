@@ -88,6 +88,11 @@ def update_profile(
     db: Session = Depends(get_db),
 ):
     """Update the authenticated user's profile."""
+    # Ensure we have a user instance attached to the current session
+    db_user = db.query(User).filter(User.id == current_user.id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
     update_data = payload.model_dump(exclude_unset=True)
 
     # Separate user fields from artisan profile fields
@@ -96,21 +101,19 @@ def update_profile(
 
     for key, value in update_data.items():
         if key in user_fields:
-            setattr(current_user, key, value)
+            setattr(db_user, key, value)
 
     # Handle artisan profile updates
     artisan_updates = {k: v for k, v in update_data.items() if k in artisan_fields}
     if artisan_updates:
-        # Previously this did a bare query and silently discarded the updates
-        # when no row existed — which was ALWAYS, since nothing created one.
-        artisan = ensure_artisan_profile(db, current_user)
+        artisan = ensure_artisan_profile(db, db_user)
         for key, value in artisan_updates.items():
             setattr(artisan, key, value)
 
     db.commit()
-    db.refresh(current_user)
+    db.refresh(db_user)
 
-    return get_profile(current_user=current_user, db=db)
+    return get_profile(current_user=db_user, db=db)
 
 
 @router.get("/dashboard", response_model=DashboardResponse)

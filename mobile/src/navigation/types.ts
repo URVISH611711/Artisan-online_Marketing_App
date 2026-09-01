@@ -16,11 +16,15 @@ export type AuthStackParamList = {
 };
 
 // Add Product stack — 5-step flow
-// Camera → ProductDetails → BackgroundMode → AIStudio → Review → Success
 export type AddProductStackParamList = {
   Camera: undefined;
   Voice: undefined;                                    // optional voice input step
   ProductDetails: { imageUris: string[] };             // user enters product info
+  BoostProduct: {                                      // AI cataloging in Add Product flow
+    imageUris: string[];
+    productDetails: Record<string, string | undefined>;
+    productId?: string;
+  };
   BackgroundMode: {                                    // pick background style
     imageUris: string[];
     productDetails: Record<string, string>;
@@ -51,6 +55,7 @@ export type ProductsStackParamList = {
   ProductsList: undefined;
   ProductDetail: { productId: string };
   EditProduct: { productId: string };
+  BoostProduct: { productId: string };
   BuyerProduct: { productId: string };
   Cart: undefined;
   Checkout: undefined;
@@ -73,6 +78,7 @@ export type SalesStackParamList = {
 // Profile stack
 export type ProfileStackParamList = {
   ProfileMain: undefined;
+  EditProfile: undefined;
   Settings: undefined;
 };
 

@@ -1,7 +1,7 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 import base64
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 from typing import Optional, List
 
 from app.database.connection import get_db
@@ -83,7 +83,13 @@ def list_marketplace_products(
     """
     query = (
         db.query(Product)
-        .options(joinedload(Product.images), joinedload(Product.inventory), joinedload(Product.artisan))
+        .options(
+            joinedload(Product.images),
+            joinedload(Product.inventory),
+            joinedload(Product.artisan),
+            selectinload(Product.translations),
+            selectinload(Product.keywords),
+        )
         .filter(Product.status.in_([ProductStatus.PUBLISHED, ProductStatus.OUT_OF_STOCK]))
         .filter(Product.deleted_at.is_(None))
     )
@@ -122,7 +128,13 @@ def get_product(
     """Get a single product by ID."""
     product = (
         db.query(Product)
-        .options(joinedload(Product.images), joinedload(Product.inventory), joinedload(Product.artisan))
+        .options(
+            joinedload(Product.images),
+            joinedload(Product.inventory),
+            joinedload(Product.artisan),
+            selectinload(Product.translations),
+            selectinload(Product.keywords),
+        )
         .filter(Product.id == product_id)
         .filter(Product.deleted_at.is_(None))
         .first()

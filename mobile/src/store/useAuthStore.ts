@@ -14,6 +14,7 @@ interface AuthState {
   setToken: (token: string) => void;
   setOnboarded: (value: boolean) => void;
   logout: () => void;
+  fetchAndSetProfile: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -29,6 +30,34 @@ export const useAuthStore = create<AuthState>()(
       setToken: (token) => set({ token }),
       setOnboarded: (value) => set({ isOnboarded: value }),
       logout: () => set({ user: null, token: null, isAuthenticated: false }),
+      fetchAndSetProfile: async () => {
+        try {
+          const { fetchProfile } = require('../services/api');
+          const profileData = await fetchProfile();
+          set((state) => {
+            if (!state.user) return state;
+            return {
+              user: {
+                ...state.user,
+                name: profileData.name,
+                email: profileData.email,
+                phone: profileData.phone,
+                address: profileData.address,
+                businessName: profileData.business_name,
+                craftType: profileData.craft_type,
+                location: profileData.location,
+                state: profileData.state,
+                bio: profileData.bio,
+                productsCount: profileData.products_count,
+                ordersCount: profileData.orders_count,
+                rating: profileData.rating,
+              }
+            };
+          });
+        } catch (err) {
+          console.warn('[useAuthStore] Failed to sync global profile:', err);
+        }
+      },
     }),
     {
       name: 'artisan-auth',

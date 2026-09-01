@@ -4,6 +4,7 @@ import { AddProductStackParamList } from './types';
 
 import { CameraScreen } from '../screens/addProduct/CameraScreen';
 import { ProductDetailsScreen } from '../screens/addProduct/ProductDetailsScreen';
+import { BoostProductScreen } from '../screens/products/BoostProductScreen';
 import { BackgroundModeScreen } from '../screens/addProduct/BackgroundModeScreen';
 import { AIStudioScreen } from '../screens/addProduct/AIStudioScreen';
 import { VoiceScreen } from '../screens/addProduct/VoiceScreen';
@@ -17,6 +18,7 @@ export const AddProductNavigator: React.FC = () => (
     <Stack.Screen name="Camera" component={CameraScreen} />
     <Stack.Screen name="Voice" component={VoiceScreen} />
     <Stack.Screen name="ProductDetails" component={ProductDetailsScreen} />
+    <Stack.Screen name="BoostProduct" component={BoostProductScreen as any} />
     <Stack.Screen name="BackgroundMode" component={BackgroundModeScreen} />
     <Stack.Screen name="AIStudio" component={AIStudioScreen} />
     <Stack.Screen name="Review" component={ReviewScreen} />

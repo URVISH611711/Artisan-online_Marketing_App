@@ -48,12 +48,12 @@ async function apiFetch<T>(endpoint: string, options: FetchOptions = {}): Promis
       useAuthStore.getState().logout();
       throw new Error('Session expired. Please log in again.');
     }
-    
+
     let detail = 'Something went wrong';
     try {
       const errorData = await res.json();
       detail = errorData.detail || detail;
-    } catch {}
+    } catch { }
     throw new Error(detail);
   }
 
@@ -141,6 +141,11 @@ export interface ProductData {
   origin: string;
   production_time?: string;
   price: number;
+  quantity: number;
+  length?: number;
+  width?: number;
+  diameter?: number;
+  dimension_unit?: string;
   status: string;
   views: number;
   orders: number;
@@ -155,12 +160,24 @@ export interface ProductData {
   artisan?: {
     user_id: string;
     business_name: string;
+    name?: string;
+    user?: { full_name: string };
     craft_type: string;
     location: string;
     city?: string;
     state: string;
     profile_image?: string;
   };
+  translations?: {
+    language_code: string;
+    name: string;
+    description: string;
+    short_description?: string;
+    is_ai_generated?: boolean;
+    reviewed_by_user?: boolean;
+  }[];
+  keywords?: string[];
+  seo?: any;
   created_at: string;
   updated_at: string;
 }
@@ -186,7 +203,7 @@ export async function fetchMarketplaceCategories(): Promise<string[]> {
   return apiFetch<string[]>('/products/categories', { auth: false });
 }
 
-export async function checkoutCart(data: { items: {product_id: string, quantity: number}[]; shipping_address: string }): Promise<any> {
+export async function checkoutCart(data: { items: { product_id: string, quantity: number }[]; shipping_address: string }): Promise<any> {
   return apiFetch<any>('/orders/checkout', { method: 'POST', body: data });
 }
 
@@ -204,6 +221,71 @@ export async function updateProduct(id: string, data: any): Promise<ProductData>
 
 export async function deleteProduct(id: string): Promise<void> {
   return apiFetch<void>(`/products/${id}`, { method: 'DELETE' });
+}
+
+// ─── Multilingual Auto-Cataloger ─────────────────────────────────
+export interface CatalogTranslation {
+  name?: string | null;
+  description?: string | null;
+  short_description?: string | null;
+}
+
+export interface CatalogResult {
+  extracted: {
+    name?: string | null;
+    material?: string | null;
+    color?: string | null;
+    craft_type?: string | null;
+    price?: string | number | null;
+    dimensions?: string | null;
+    length?: string | number | null;
+    width?: string | number | null;
+    diameter?: string | number | null;
+    origin?: string | null;
+    confidence?: Record<string, number>;
+    [key: string]: any;
+  };
+  translations: {
+    en?: CatalogTranslation;
+    hi?: CatalogTranslation;
+    [key: string]: CatalogTranslation | undefined;
+  };
+  seo: {
+    title?: string | null;
+    meta_description?: string | null;
+    keywords?: string[];
+    tags?: string[];
+  };
+  image_check: {
+    mismatch: boolean;
+    message?: string | null;
+  };
+}
+
+export interface GenerateCatalogBody {
+  transcript: string;
+  language?: string;
+  product_id?: string;
+  existing_description?: string;
+  confidence_score?: number;
+}
+
+export interface ApplyCatalogBody {
+  product_id: string;
+  translations: Record<string, CatalogTranslation>;
+  keywords: string[];
+  seo?: any;
+  base_updates?: Record<string, any>;
+}
+
+/** Generate an editable bilingual catalog draft from a voice transcript. No DB write to the product. */
+export async function generateCatalog(body: GenerateCatalogBody): Promise<{ success: boolean; catalog: CatalogResult }> {
+  return apiFetch<{ success: boolean; catalog: CatalogResult }>('/ai/catalog/generate', { method: 'POST', body });
+}
+
+/** Persist the artisan-reviewed catalog (EN/HI translations, keywords, SEO) onto an existing owned product. */
+export async function applyCatalog(body: ApplyCatalogBody): Promise<ProductData> {
+  return apiFetch<ProductData>('/ai/catalog/apply', { method: 'POST', body });
 }
 
 // ─── Orders ──────────────────────────────────────────────────────
@@ -338,7 +420,7 @@ export async function enhanceProductImages(
     try {
       const token = useAuthStore.getState().token;
       const xhr = new XMLHttpRequest();
-      
+
       console.log(`[API] Starting upload to ${endpoints.studio.process}...`);
 
       xhr.open('POST', endpoints.studio.process);
@@ -351,8 +433,8 @@ export async function enhanceProductImages(
         const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
         const mimeType =
           ext === 'png' ? 'image/png' :
-          ext === 'webp' ? 'image/webp' :
-          'image/jpeg';
+            ext === 'webp' ? 'image/webp' :
+              'image/jpeg';
 
         formData.append('images', {
           uri,
@@ -432,7 +514,7 @@ export async function autoFillBackgroundDetails(imageUri: string, productDetails
   });
 }
 
-export async function transcribeVoice(audioUri: string): Promise<{ success: boolean; text: string; language?: string }> {
+export async function transcribeVoice(audioUri: string): Promise<{ success: boolean; text: string; language?: string; language_probability?: number }> {
   const token = useAuthStore.getState().token;
   if (!token) throw new Error('Not authenticated');
 
@@ -466,13 +548,13 @@ export async function transcribeVoice(audioUri: string): Promise<{ success: bool
 export async function autoDescribeProduct(imageUri: string): Promise<any> {
   const token = useAuthStore.getState().token;
   const formData = new FormData();
-  
+
   const filename = imageUri.split('/').pop() || 'image.jpg';
   const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
   const mimeType =
     ext === 'png' ? 'image/png' :
-    ext === 'webp' ? 'image/webp' :
-    'image/jpeg';
+      ext === 'webp' ? 'image/webp' :
+        'image/jpeg';
 
   formData.append('image', {
     uri: imageUri,

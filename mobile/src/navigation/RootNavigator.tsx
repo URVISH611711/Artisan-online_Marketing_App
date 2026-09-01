@@ -12,8 +12,14 @@ import { ArtisanProfileScreen } from '../screens/marketplace/ArtisanProfileScree
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const RootNavigator: React.FC = () => {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, fetchAndSetProfile } = useAuthStore();
   const [aiVisible, setAiVisible] = useState(false);
+
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      fetchAndSetProfile();
+    }
+  }, [isAuthenticated, fetchAndSetProfile]);
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>

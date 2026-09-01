@@ -92,6 +92,9 @@ export const ProductDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     );
   }
 
+  const enTranslation = product.translations?.find((t) => t.language_code === 'en');
+  const displayDescription = enTranslation?.description || product.description || 'No description provided.';
+
   const primaryImageUrl = product.images?.find((img: any) => img.is_enhanced || img.isEnhanced)?.url || product.images?.[0]?.url || 'https://via.placeholder.com/400';
   const activeImage = selectedImage || primaryImageUrl;
 
@@ -180,23 +183,41 @@ export const ProductDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           {[
             { label: 'Material', value: product.material },
             { label: 'Craft Type', value: product.craft_type },
+            { label: 'Color', value: product.color },
             { label: 'Origin', value: product.origin },
+            { label: 'Dimensions', value: [
+                product.length ? `L: ${product.length}${product.dimension_unit || 'cm'}` : null,
+                product.width ? `W: ${product.width}${product.dimension_unit || 'cm'}` : null,
+                product.diameter ? `Ø: ${product.diameter}${product.dimension_unit || 'cm'}` : null,
+              ].filter(Boolean).join(' × ') || null 
+            },
             { label: 'Production Time', value: product.production_time || '—' },
-          ].map(({ label, value }) => (
-            <View key={label} style={styles.detailRow}>
-              <Text style={styles.detailLabel}>{label}</Text>
-              <Text style={styles.detailValue}>{value}</Text>
-            </View>
-          ))}
+          ].map(({ label, value }) => {
+            if (!value) return null; // hide if blank
+            return (
+              <View key={label} style={styles.detailRow}>
+                <Text style={styles.detailLabel}>{label}</Text>
+                <Text style={styles.detailValue}>{value}</Text>
+              </View>
+            );
+          })}
 
           {/* Description */}
           <Text style={styles.sectionTitle}>Description</Text>
-          <Text style={styles.description}>{product.description}</Text>
+          <Text style={styles.description}>{displayDescription}</Text>
 
           {/* Keywords */}
           <Text style={styles.sectionTitle}>Keywords</Text>
           <View style={styles.keywordsRow}>
-            <Text style={{ fontSize: 13, color: colors.textSecondary }}>—</Text>
+            {product.keywords && product.keywords.length > 0 ? (
+              product.keywords.map((kw, idx) => (
+                <View key={idx} style={styles.keyword}>
+                  <Text style={styles.keywordText}>{kw}</Text>
+                </View>
+              ))
+            ) : (
+              <Text style={{ fontSize: 13, color: colors.textSecondary }}>—</Text>
+            )}
           </View>
         </View>
       </ScrollView>
@@ -211,9 +232,6 @@ export const ProductDetailScreen: React.FC<Props> = ({ navigation, route }) => {
             iconPosition="right" 
             loading={publishing}
           />
-        )}
-        {statusKey === 'live' && (
-          <Button title="Boost Product" onPress={() => {}} icon="trending-up-outline" iconPosition="right" />
         )}
         <Button title="Edit Product" onPress={() => navigation.navigate('EditProduct', { productId: product.id })} variant="outline" style={{ marginTop: 10 }} />
       </View>

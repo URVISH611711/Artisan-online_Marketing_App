@@ -13,6 +13,15 @@ export interface User {
   language: AppLanguage;
   voiceLanguage: AppLanguage;
   createdAt: string;
+  // Profile fields synchronized globally
+  businessName?: string;
+  craftType?: string;
+  location?: string;
+  state?: string;
+  bio?: string;
+  productsCount?: number;
+  ordersCount?: number;
+  rating?: number;
 }
 
 export interface ArtisanProfile {

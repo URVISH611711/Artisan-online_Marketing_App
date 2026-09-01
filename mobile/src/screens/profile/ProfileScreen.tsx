@@ -7,79 +7,17 @@ import { Button } from '../../components/ui/Button';
 import { colors } from '../../theme/colors';
 import { layout } from '../../theme/spacing';
 import { useAuthStore, useLanguageStore } from '../../store/useAuthStore';
-import { fetchProfile, ProfileData } from '../../services/api';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
 
 export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user, logout } = useAuthStore();
   const { language, voiceLanguage } = useLanguageStore();
   const langNames: Record<string, string> = { en: 'English', hi: 'Hindi', gu: 'Gujarati' };
 
-  const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const displayName = user?.name || 'Artisan';
+  const displayLocation = user?.location || user?.address || '';
 
-  const loadProfile = useCallback(async () => {
-    try {
-      setError(false);
-      const data = await fetchProfile();
-      setProfile(data);
-    } catch (err) {
-      console.error('Profile load error:', err);
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadProfile();
-    }, [loadProfile])
-  );
-
-  const displayName = profile?.name || user?.name || 'Artisan';
-  const displayEmail = profile?.email || user?.email || '';
-  const displayPhone = profile?.phone || user?.phone || '';
-  const displayAddress = profile?.address || user?.address || '';
-  const displayLocation = profile?.location || displayAddress || '';
-  const displayBusiness = profile?.business_name || displayName;
-  const displayCraft = profile?.craft_type || 'Not set';
-
-  const BUSINESS_FIELDS = [
-    { icon: 'person-outline' as const, label: 'Full Name', value: displayName },
-    { icon: 'mail-outline' as const, label: 'Email', value: displayEmail },
-    { icon: 'call-outline' as const, label: 'Mobile', value: displayPhone || 'Not set' },
-    { icon: 'location-outline' as const, label: 'Address', value: displayAddress || 'Not set' },
-    { icon: 'storefront-outline' as const, label: 'Business Name', value: displayBusiness },
-    { icon: 'color-palette-outline' as const, label: 'Craft Type', value: displayCraft },
-  ];
-
-  if (loading) {
-    return (
-      <ScreenWrapper padded={false}>
-        <Header title="Artisan Profile" />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading profile...</Text>
-        </View>
-      </ScreenWrapper>
-    );
-  }
-
-  if (error) {
-    return (
-      <ScreenWrapper padded={false}>
-        <Header title="Artisan Profile" />
-        <View style={styles.loadingContainer}>
-          <Ionicons name="warning-outline" size={48} color={colors.textTertiary} />
-          <Text style={styles.loadingText}>Unable to load profile</Text>
-          <Button title="Retry" onPress={loadProfile} size="sm" />
-        </View>
-      </ScreenWrapper>
-    );
-  }
 
   return (
     <ScreenWrapper padded={false}>
@@ -104,15 +42,23 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
               <Text style={styles.location}>{displayLocation}</Text>
             </View>
           ) : null}
-          <Button title="Edit Profile" onPress={() => {}} variant="outline" size="sm" icon="pencil-outline" style={styles.editBtn} fullWidth={false} />
+          <Button 
+            title="Edit Profile" 
+            onPress={() => navigation.navigate('EditProfile')} 
+            variant="outline" 
+            size="sm" 
+            icon="pencil-outline" 
+            style={styles.editBtn} 
+            fullWidth={false} 
+          />
         </Card>
 
         {/* Stats */}
         <Card padding="md" style={styles.statsCard}>
           {[
-            { value: profile?.products_count ?? 0, label: 'Products' },
-            { value: profile?.orders_count ?? 0, label: 'Orders' },
-            { value: profile?.rating ? `${profile.rating} ☆` : '0 ☆', label: 'Rating' },
+            { value: user?.productsCount ?? 0, label: 'Products' },
+            { value: user?.ordersCount ?? 0, label: 'Orders' },
+            { value: user?.rating ? `${user.rating} ☆` : '0 ☆', label: 'Rating' },
           ].map(({ value, label }) => (
             <View key={label} style={styles.stat}>
               <Text style={styles.statValue}>{value}</Text>
@@ -121,22 +67,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
           ))}
         </Card>
 
-        {/* Business */}
-        <Text style={styles.sectionTitle}>Personal & Business</Text>
-        <Card padding="none" style={styles.fieldsCard}>
-          {BUSINESS_FIELDS.map(({ icon, label, value }, i) => (
-            <TouchableOpacity key={label} style={[styles.field, i < BUSINESS_FIELDS.length - 1 && styles.fieldBorder]}>
-              <View style={styles.fieldIconBox}>
-                <Ionicons name={icon} size={18} color={colors.primary} />
-              </View>
-              <View style={styles.fieldText}>
-                <Text style={styles.fieldLabel}>{label}</Text>
-                <Text style={styles.fieldValue}>{value}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
-            </TouchableOpacity>
-          ))}
-        </Card>
+
 
         {/* Preferences */}
         <Text style={styles.sectionTitle}>Preferences</Text>

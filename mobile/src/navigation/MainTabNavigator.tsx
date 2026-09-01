@@ -18,6 +18,7 @@ import { AddProductNavigator } from './AddProductNavigator';
 import { ProductsScreen } from '../screens/products/ProductsScreen';
 import { ProductDetailScreen } from '../screens/products/ProductDetailScreen';
 import { EditProductScreen } from '../screens/products/EditProductScreen';
+import { BoostProductScreen } from '../screens/products/BoostProductScreen';
 import { BuyerProductScreen } from '../screens/marketplace/BuyerProductScreen';
 import { CartScreen } from '../screens/marketplace/CartScreen';
 import { CheckoutScreen } from '../screens/marketplace/CheckoutScreen';
@@ -31,6 +32,7 @@ import { SalesScreen } from '../screens/sales/SalesScreen';
 import { InsightsScreen } from '../screens/sales/InsightsScreen';
 
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
+import { EditProfileScreen } from '../screens/profile/EditProfileScreen';
 import { SettingsScreen } from '../screens/profile/SettingsScreen';
 
 // Stack navigators for each tab
@@ -54,6 +56,7 @@ const ProductsStackScreen = () => (
     <ProductsStack.Screen name="ProductsList" component={ProductsScreen} />
     <ProductsStack.Screen name="ProductDetail" component={ProductDetailScreen} />
     <ProductsStack.Screen name="EditProduct" component={EditProductScreen} />
+    <ProductsStack.Screen name="BoostProduct" component={BoostProductScreen} />
     <ProductsStack.Screen name="BuyerProduct" component={BuyerProductScreen as any} />
     <ProductsStack.Screen name="Cart" component={CartScreen} />
     <ProductsStack.Screen name="Checkout" component={CheckoutScreen} />
@@ -79,6 +82,7 @@ const SalesStackScreen = () => (
 const ProfileStackScreen = () => (
   <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
     <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} />
+    <ProfileStack.Screen name="EditProfile" component={EditProfileScreen} />
     <ProfileStack.Screen name="Settings" component={SettingsScreen} />
   </ProfileStack.Navigator>
 );

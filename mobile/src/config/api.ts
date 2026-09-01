@@ -1,19 +1,20 @@
-import { NativeModules } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 // ── API URL Resolution ────────────────────────────────────────────────────────
 //
 // Priority:
-//  1. EXPO_PUBLIC_API_URL env var — set this in mobile/.env for LocalTunnel / Prod
-//     Example: EXPO_PUBLIC_API_URL=https://my-artisan-app.loca.lt
-//  2. Metro scriptURL auto-detect — reliable in Expo Go / dev builds
-//  3. LAN IP fallback             — fallback for physical devices in same Wi-Fi
+//  1. EXPO_PUBLIC_API_URL env var (Staging, Production)
+//  2. Platform.OS === 'web' (Web Browser URL detection)
+//  3. Auto-detect LAN IP from Expo Constants / Metro (Expo Go / physical devices)
+//  4. Localhost fallback (iOS Simulators)
 
 let resolvedUrl: string = "";
 
 function getApiUrl(): string {
   if (resolvedUrl) return resolvedUrl;
 
-  // 1. Explicit env var (LocalTunnel, Staging, Production)
+  // 1. Explicit env var
   if (process.env.EXPO_PUBLIC_API_URL) {
     let raw = process.env.EXPO_PUBLIC_API_URL.trim().replace(/\/+$/, '');
     resolvedUrl = raw.endsWith('/api/v1') ? raw : `${raw}/api/v1`;
@@ -21,21 +22,39 @@ function getApiUrl(): string {
     return resolvedUrl;
   }
 
-  // 2. Auto-detect from Metro bundler URL (dev only)
+  // 2. Auto-detect on Web
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    resolvedUrl = `http://${window.location.hostname}:8000/api/v1`;
+    console.log(`[API Config] Auto-detected Web LAN IP: ${resolvedUrl}`);
+    return resolvedUrl;
+  }
+
+  // 3. Robust LAN IP auto-detect (dev only)
   if (__DEV__) {
-    const scriptURL = NativeModules.SourceCode?.scriptURL as string | undefined;
-    if (scriptURL) {
-      const match = scriptURL.match(/http:\/\/([^:]+)/);
-      if (match && match[1]) {
-        resolvedUrl = `http://${match[1]}:8000/api/v1`;
-        console.log(`[API Config] Auto-detected Metro LAN IP: ${resolvedUrl}`);
-        return resolvedUrl;
+    // We check multiple sources because different Expo versions/platforms store the IP differently
+    const urlsToTest = [
+      Constants.experienceUrl,
+      // @ts-ignore - Some Expo SDKs have hostUri under expoConfig
+      Constants.expoConfig?.hostUri,
+      NativeModules.SourceCode?.scriptURL,
+    ];
+
+    for (const testUrl of urlsToTest) {
+      if (testUrl && typeof testUrl === 'string') {
+        // Extract any IPv4 address (e.g. 192.168.1.5 or 10.0.0.2)
+        const ipMatch = testUrl.match(/([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)/);
+        if (ipMatch && ipMatch[1] && ipMatch[1] !== '127.0.0.1' && ipMatch[1] !== '0.0.0.0') {
+          resolvedUrl = `http://${ipMatch[1]}:8000/api/v1`;
+          console.log(`[API Config] Auto-detected LAN IP: ${resolvedUrl} (from ${testUrl})`);
+          return resolvedUrl;
+        }
       }
     }
   }
 
-  // 3. Hardcoded LAN fallback
-  resolvedUrl = 'http://10.53.75.28:8000/api/v1';
+  // 4. Absolute fallback (Use explicit LAN IP to prevent 127.0.0.1 failures on Android)
+  resolvedUrl = 'http://10.43.88.54:8000/api/v1';
+  console.log(`[API Config] Falling back to known LAN IP: ${resolvedUrl}`);
   return resolvedUrl;
 }
 

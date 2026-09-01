@@ -53,6 +53,12 @@ class Product(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     production_time: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     sku: Mapped[Optional[str]] = mapped_column(String(100), unique=True, nullable=True, index=True)
     
+    # Dimensions
+    length: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    width: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    diameter: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    dimension_unit: Mapped[str] = mapped_column(String(20), default="cm")
+    
     # Flexible attributes stored in JSONB
     attributes: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     
@@ -70,6 +76,13 @@ class Product(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     translations: Mapped[List["ProductTranslation"]] = relationship("ProductTranslation", back_populates="product", cascade="all, delete-orphan")
     keywords: Mapped[List["ProductKeyword"]] = relationship("ProductKeyword", back_populates="product", cascade="all, delete-orphan")
     inventory: Mapped[Optional["Inventory"]] = relationship("Inventory", back_populates="product", uselist=False, cascade="all, delete-orphan")
+
+    @property
+    def seo(self) -> Optional[dict]:
+        """SEO block stored inside the flexible attributes JSONB (see catalog.apply)."""
+        if isinstance(self.attributes, dict):
+            return self.attributes.get("seo")
+        return None
 
 class ProductDraft(Base, UUIDMixin, TimestampMixin):
     """

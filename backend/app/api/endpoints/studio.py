@@ -639,6 +639,20 @@ async def studio_publish(
     """
     job = get_job(payload.job_id)
     if not job:
+        from app.models.ai import AIProcessingJob
+        try:
+            db_job = db.query(AIProcessingJob).filter(AIProcessingJob.id == payload.job_id).first()
+            if db_job and db_job.status == "COMPLETED":
+                class MockJob:
+                    def __init__(self, db_job):
+                        self.user_id = str(current_user.id)
+                        self.status = db_job.status
+                        self.result = db_job.output_data or {}
+                job = MockJob(db_job)
+        except Exception:
+            pass
+
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     if job.user_id and job.user_id != str(current_user.id):
         raise HTTPException(status_code=403, detail="Access denied")
@@ -648,27 +662,68 @@ async def studio_publish(
     details = payload.product_details
     ensure_artisan_profile(db, current_user)
 
+    seo_data = details.seo if hasattr(details, 'seo') else details.get("seo") if isinstance(details, dict) else None
+    
+    attributes = {}
+    if any([getattr(details, k, None) for k in ["key_features", "intended_use", "target_customer", "style"]]):
+        attributes.update({
+            "key_features": getattr(details, "key_features", None),
+            "intended_use": getattr(details, "intended_use", None),
+            "target_customer": getattr(details, "target_customer", None),
+            "style": getattr(details, "style", None),
+        })
+    if seo_data:
+        attributes["seo"] = seo_data
+
+    details_dict = details.model_dump() if hasattr(details, "model_dump") else (details.dict() if hasattr(details, "dict") else (details if isinstance(details, dict) else {}))
+    
     product = Product(
         id=uuid.uuid4(),
         artisan_id=current_user.id,
-        name=details.name,
-        description=details.description or "",
-        short_description=details.short_description,
-        material=details.material or "",
-        craft_type=details.craft_type or "",
-        color=details.color,
+        name=details_dict.get("name") or "",
+        description=details_dict.get("description") or "",
+        short_description=details_dict.get("short_description") or "",
+        material=details_dict.get("material") or "",
+        craft_type=details_dict.get("craft_type") or "",
+        color=details_dict.get("color") or "",
         origin="India",
-        production_time=details.production_time,
-        price=details.price or 0.0,
+        production_time=details_dict.get("production_time") or "",
+        price=details_dict.get("price") or 0.0,
+        length=details_dict.get("length"),
+        width=details_dict.get("width"),
+        diameter=details_dict.get("diameter"),
         status=ProductStatus.DRAFT,
-        attributes={
-            "key_features": details.key_features,
-            "intended_use": details.intended_use,
-            "target_customer": details.target_customer,
-            "style": details.style,
-        } if any([details.key_features, details.intended_use, details.target_customer, details.style]) else None,
+        attributes=attributes if attributes else None,
     )
     db.add(product)
+    
+    translations_data = details.translations if hasattr(details, 'translations') else details.get("translations") if isinstance(details, dict) else None
+    if translations_data:
+        from app.models.product import ProductTranslation
+        for lang_code, trans in translations_data.items():
+            if lang_code in ["en", "hi"]:
+                pt = ProductTranslation(
+                    id=uuid.uuid4(),
+                    product_id=product.id,
+                    language_code=lang_code,
+                    name=trans.get("name", ""),
+                    description=trans.get("description", ""),
+                    short_description=trans.get("short_description", ""),
+                    is_ai_generated=True,
+                    reviewed_by_user=True
+                )
+                db.add(pt)
+
+    if seo_data and isinstance(seo_data, dict):
+        keywords_list = seo_data.get("keywords", [])
+        if keywords_list:
+            from app.models.product import ProductKeyword
+            seen_kw = set()
+            for kw in keywords_list:
+                k = (kw or "").strip()[:100]
+                if k and k.lower() not in seen_kw:
+                    seen_kw.add(k.lower())
+                    db.add(ProductKeyword(id=uuid.uuid4(), product_id=product.id, keyword=k))
 
     inv = Inventory(
         product_id=product.id,

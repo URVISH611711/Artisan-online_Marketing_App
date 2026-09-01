@@ -61,7 +61,7 @@ export const ProductDetailsScreen: React.FC<Props> = ({ navigation, route }) => 
       imageUris,
     });
     
-    navigation.navigate('BackgroundMode', {
+    navigation.navigate('BoostProduct' as any, {
       imageUris,
       productDetails: { ...details, price: price.toString() }, // Stringify for navigation param
     });
@@ -159,7 +159,7 @@ export const ProductDetailsScreen: React.FC<Props> = ({ navigation, route }) => 
 
       <View style={styles.footer}>
         <Button
-          title="Next: Choose Background"
+          title="Next: Boost Product"
           onPress={handleNext}
           disabled={!name.trim()}
           fullWidth
