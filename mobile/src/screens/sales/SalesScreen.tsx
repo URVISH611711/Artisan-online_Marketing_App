@@ -39,19 +39,51 @@ const chartStyles = StyleSheet.create({
 export const SalesScreen: React.FC<Props> = ({ navigation }) => {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'year'>('month');
+
+  const loadData = useCallback((period: 'week' | 'month' | 'year') => {
+    setLoading(true);
+    fetchDashboard(period)
+      .then(setDashboard)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      fetchDashboard()
-        .then(setDashboard)
-        .catch(console.error)
-        .finally(() => setLoading(false));
-    }, [])
+      loadData(selectedPeriod);
+    }, [selectedPeriod, loadData])
   );
+
+  const handlePeriodChange = (period: 'week' | 'month' | 'year') => {
+    setSelectedPeriod(period);
+  };
 
   const totalSales = dashboard?.total_sales ?? 0;
   const totalOrders = dashboard?.orders_count ?? 0;
-  const avgOrder = totalOrders > 0 ? Math.round(totalSales / totalOrders) : 0;
+
+  let revenueLabel = 'Sales This Month';
+  let ordersLabel = 'Orders in Month';
+  let avgLabel = 'Avg. Sales Per Week';
+  let avgValue = Math.round(totalSales / 4);
+
+  if (selectedPeriod === 'week') {
+    revenueLabel = 'Sales This Week';
+    ordersLabel = 'Orders in Week';
+    avgLabel = 'Avg. Sales Per Day';
+    avgValue = dashboard?.avg_sales !== undefined ? Math.round(dashboard.avg_sales) : Math.round(totalSales / 7);
+  } else if (selectedPeriod === 'year') {
+    revenueLabel = 'Sales This Year';
+    ordersLabel = 'Orders in Year';
+    avgLabel = 'Avg. Sales Per Month';
+    avgValue = dashboard?.avg_sales !== undefined ? Math.round(dashboard.avg_sales) : Math.round(totalSales / 12);
+  } else {
+    revenueLabel = 'Sales This Month';
+    ordersLabel = 'Orders in Month';
+    avgLabel = 'Avg. Sales Per Week';
+    avgValue = dashboard?.avg_sales !== undefined ? Math.round(dashboard.avg_sales) : Math.round(totalSales / 4);
+  }
+
   return (
     <ScreenWrapper padded={false}>
       {/* Header */}
@@ -62,9 +94,30 @@ export const SalesScreen: React.FC<Props> = ({ navigation }) => {
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Sales</Text>
         </View>
-        <TouchableOpacity style={styles.periodBtn}>
-          <Text style={styles.periodText}>This Month</Text>
-          <Ionicons name="chevron-down" size={16} color={colors.textPrimary} />
+      </View>
+
+      {/* Period Dropdowns Row (Picture 1 style) */}
+      <View style={styles.filterRow}>
+        <TouchableOpacity
+          style={[styles.filterBtn, selectedPeriod === 'week' && styles.filterBtnActive]}
+          onPress={() => handlePeriodChange('week')}
+        >
+          <Text style={styles.filterText}>This Week</Text>
+          <Ionicons name="caret-down" size={12} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.filterBtn, selectedPeriod === 'month' && styles.filterBtnActive]}
+          onPress={() => handlePeriodChange('month')}
+        >
+          <Text style={styles.filterText}>This Month</Text>
+          <Ionicons name="caret-down" size={12} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.filterBtn, selectedPeriod === 'year' && styles.filterBtnActive]}
+          onPress={() => handlePeriodChange('year')}
+        >
+          <Text style={styles.filterText}>This Year</Text>
+          <Ionicons name="caret-down" size={12} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
@@ -77,7 +130,7 @@ export const SalesScreen: React.FC<Props> = ({ navigation }) => {
           <>
             {/* Revenue card */}
             <Card padding="lg" style={styles.revenueCard}>
-              <Text style={styles.revLabel}>Sales This Month</Text>
+              <Text style={styles.revLabel}>{revenueLabel}</Text>
               <View style={styles.revRow}>
                 <Text style={styles.revAmount}>₹{totalSales.toLocaleString('en-IN')}</Text>
               </View>
@@ -86,12 +139,12 @@ export const SalesScreen: React.FC<Props> = ({ navigation }) => {
             {/* Stats row */}
             <View style={styles.statsRow}>
               <Card padding="md" style={styles.statCard}>
-                <Text style={styles.statLabel}>Orders</Text>
+                <Text style={styles.statLabel}>{ordersLabel}</Text>
                 <Text style={styles.statValue}>{totalOrders}</Text>
               </Card>
               <Card padding="md" style={styles.statCard}>
-                <Text style={styles.statLabel}>Avg. Order</Text>
-                <Text style={styles.statValue}>₹{avgOrder.toLocaleString('en-IN')}</Text>
+                <Text style={styles.statLabel}>{avgLabel}</Text>
+                <Text style={styles.statValue}>₹{avgValue.toLocaleString('en-IN')}</Text>
               </Card>
             </View>
 
@@ -121,36 +174,19 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: layout.screenPadding, paddingVertical: 12 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerTitle: { fontSize: 22, fontWeight: '800', color: colors.textPrimary },
-  periodBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EBF5FF', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
-  periodText: { fontSize: 14, fontWeight: '600', color: colors.primary },
+  filterRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: layout.screenPadding, paddingBottom: 14, gap: 8 },
+  filterBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.surface, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.border, flex: 1 },
+  filterBtnActive: { borderColor: colors.primary, backgroundColor: '#FFFFFF' },
+  filterText: { fontSize: 13, fontWeight: '600', color: colors.textPrimary },
   scroll: { paddingHorizontal: layout.screenPadding, paddingBottom: 100 },
   revenueCard: { marginBottom: 12 },
   revLabel: { fontSize: 13, color: colors.textSecondary, marginBottom: 8 },
   revRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
   revAmount: { fontSize: 36, fontWeight: '800', color: colors.textPrimary },
-  growthBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.successLight, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  growthText: { fontSize: 12, color: colors.success, fontWeight: '600' },
-  weekRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  weekLabel: { fontSize: 10, color: colors.textTertiary },
   statsRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
   statCard: { flex: 1 },
   statLabel: { fontSize: 13, color: colors.textSecondary, marginBottom: 8 },
   statValue: { fontSize: 24, fontWeight: '800', color: colors.textPrimary },
-  statValueRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  buyerCard: { marginBottom: 16 },
-  buyerInner: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  buyerIconBox: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFF7ED', alignItems: 'center', justifyContent: 'center' },
-  buyerTextBox: { flex: 1 },
-  buyerTitle: { fontSize: 15, fontWeight: '700', color: colors.textPrimary },
-  buyerSub: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
-  viewLink: { fontSize: 14, fontWeight: '700', color: colors.primary },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: colors.textPrimary, marginBottom: 12 },
-  topRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12 },
-  topRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  topRank: { fontSize: 16, fontWeight: '800', color: colors.textTertiary, width: 20 },
-  topThumb: { width: 44, height: 44, borderRadius: 8, backgroundColor: colors.borderLight },
-  topName: { flex: 1, fontSize: 14, fontWeight: '600', color: colors.textPrimary },
-  topRevenue: { fontSize: 15, fontWeight: '700', color: colors.primary },
   insightsLink: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.surface, borderRadius: 12, padding: 16, marginTop: 8, marginBottom: 20 },
   insightsText: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.primary },
 });

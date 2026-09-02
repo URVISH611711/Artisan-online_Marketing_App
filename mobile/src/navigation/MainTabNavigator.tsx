@@ -8,7 +8,6 @@ import { colors } from '../theme/colors';
 import { layout, shadows } from '../theme/spacing';
 import { rs, rf } from '../theme/responsive';
 import { MainTabParamList, HomeStackParamList, ProductsStackParamList, OrdersStackParamList, SalesStackParamList, ProfileStackParamList } from './types';
-import { FloatingMicButton } from '../components/layout/FloatingMicButton';
 
 // Screens
 import { HomeScreen } from '../screens/home/HomeScreen';
@@ -104,7 +103,14 @@ const TabIcon: React.FC<TabIconProps> = ({ name, focused, label, badge }) => (
         color={focused ? colors.primary : colors.tabInactive}
       />
     </View>
-    <Text style={[tabStyles.label, focused && tabStyles.labelActive]}>{label}</Text>
+    <Text
+      numberOfLines={1}
+      adjustsFontSizeToFit
+      minimumFontScale={0.75}
+      style={[tabStyles.label, focused && tabStyles.labelActive]}
+    >
+      {label}
+    </Text>
     {badge != null && badge > 0 && (
       <View style={tabStyles.badge}>
         <Text style={tabStyles.badgeText}>{badge}</Text>
@@ -113,10 +119,10 @@ const TabIcon: React.FC<TabIconProps> = ({ name, focused, label, badge }) => (
   </View>
 );
 
-export const MainTabNavigator: React.FC<{ onMicPress: () => void }> = ({ onMicPress }) => {
+export const MainTabNavigator: React.FC<{ onMicPress?: () => void }> = () => {
   const insets = useSafeAreaInsets();
   // Dynamic tab bar height: base + safe area bottom inset (for Android gesture nav / iPhone home bar)
-  const tabBarHeight = rs(56) + insets.bottom;
+  const tabBarHeight = rs(58) + insets.bottom;
 
   return (
     <View style={{ flex: 1 }}>
@@ -127,9 +133,10 @@ export const MainTabNavigator: React.FC<{ onMicPress: () => void }> = ({ onMicPr
             tabStyles.tabBar,
             {
               height: tabBarHeight,
-              paddingBottom: insets.bottom > 0 ? insets.bottom : rs(8),
+              paddingBottom: insets.bottom > 0 ? insets.bottom : rs(6),
             }
           ],
+          tabBarItemStyle: tabStyles.tabBarItem,
           tabBarShowLabel: false,
         }}
       >
@@ -169,7 +176,6 @@ export const MainTabNavigator: React.FC<{ onMicPress: () => void }> = ({ onMicPr
           }}
         />
       </Tab.Navigator>
-      <FloatingMicButton onPress={onMicPress} />
     </View>
   );
 };
@@ -177,19 +183,29 @@ export const MainTabNavigator: React.FC<{ onMicPress: () => void }> = ({ onMicPr
 const tabStyles = StyleSheet.create({
   tabBar: {
     backgroundColor: colors.surface,
-    borderTopWidth: 0,
-    // height and paddingBottom are set dynamically above
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 0,
     ...shadows.bottomNav,
+  },
+  tabBarItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRightWidth: 1,
+    borderRightColor: colors.borderLight,
+    paddingHorizontal: 1,
   },
   iconWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 8,
+    width: '100%',
+    paddingHorizontal: 2,
     position: 'relative',
   },
   iconContainer: {
     width: 40,
-    height: 32,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 8,
@@ -198,18 +214,21 @@ const tabStyles = StyleSheet.create({
     backgroundColor: '#EBF5FF',
   },
   label: {
-    fontSize: rf(10),
-    marginTop: rs(2),
+    fontSize: 10,
+    marginTop: 2,
     color: colors.tabInactive,
+    textAlign: 'center',
+    fontWeight: '500',
+    width: '100%',
   },
   labelActive: {
     color: colors.primary,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   badge: {
     position: 'absolute',
-    top: 4,
-    right: -6,
+    top: 2,
+    right: 4,
     backgroundColor: colors.secondary,
     width: 14,
     height: 14,

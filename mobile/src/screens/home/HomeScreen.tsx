@@ -19,7 +19,7 @@ import { colors } from '../../theme/colors';
 import { shadows } from '../../theme/spacing';
 import { rs, rf, rp, rg, rv } from '../../theme/responsive';
 import { useAuthStore } from '../../store/useAuthStore';
-import { fetchDashboard, fetchNotifications, DashboardData } from '../../services/api';
+import { fetchDashboard, fetchNotifications, fetchOrders, DashboardData } from '../../services/api';
 import { useFocusEffect } from '@react-navigation/native';
 
 type Props = { navigation: NativeStackNavigationProp<HomeStackParamList, 'HomeMain'> };
@@ -30,17 +30,36 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const { width } = useWindowDimensions();
 
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [todaySales, setTodaySales] = useState<number>(0);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
     try {
-      const [dashData, notifs] = await Promise.all([
-        fetchDashboard(),
+      const [dashData, notifs, sellerOrders] = await Promise.all([
+        fetchDashboard('today'),
         fetchNotifications(),
+        fetchOrders('seller').catch(() => []),
       ]);
       setDashboard(dashData);
       setUnreadCount(notifs.filter((n) => !n.read).length);
+
+      const acceptedStatuses = ['accepted', 'processing', 'shipped', 'delivered', 'completed'];
+      const now = new Date();
+      const calculatedTodaySales = (sellerOrders || [])
+        .filter((o) => {
+          if (!o.created_at) return false;
+          const d = new Date(o.created_at);
+          const isSameDay =
+            d.getDate() === now.getDate() &&
+            d.getMonth() === now.getMonth() &&
+            d.getFullYear() === now.getFullYear();
+          return isSameDay && acceptedStatuses.includes(o.status.toLowerCase());
+        })
+        .reduce((sum, o) => sum + (o.total_amount || 0), 0);
+
+      const backendSales = dashData?.total_sales || 0;
+      setTodaySales(Math.max(backendSales, calculatedTodaySales));
     } catch (err) {
       console.error('Dashboard load error:', err);
     } finally {
@@ -70,7 +89,6 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
   const productsCount = dashboard?.products_count ?? 0;
   const ordersCount = dashboard?.new_orders_count ?? 0;
-  const totalSales = dashboard?.total_sales ?? 0;
 
   return (
     <ScreenWrapper scrollable={false} padded={false}>
@@ -78,6 +96,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
         greeting={greeting()}
         greetingName={user?.name?.split(' ')[0] || 'Artisan'}
         onNotifications={() => navigation.navigate('Notifications')}
+        onProfilePress={() => (navigation.getParent() as any)?.navigate('Profile')}
         notificationCount={unreadCount}
       />
 
@@ -118,7 +137,11 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 adjustsFontSizeToFit
                 minimumFontScale={0.75}
               >
-                {totalSales >= 1000 ? `₹${(totalSales / 1000).toFixed(0)}K` : `₹${totalSales}`}
+                {todaySales >= 1000000
+                  ? `₹${(todaySales / 1000000).toFixed(1)}M`
+                  : todaySales >= 100000
+                  ? `₹${(todaySales / 1000).toFixed(0)}K`
+                  : `₹${todaySales.toLocaleString('en-IN')}`}
               </Text>
               <Text style={[styles.statLabel, { fontSize: statLabelSize }]}>Sales</Text>
             </Card>
@@ -144,24 +167,11 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
           <Ionicons name="chevron-forward" size={rs(18)} color={colors.primary} style={styles.addProductArrow} />
         </TouchableOpacity>
 
-        {/* ── Voice card ── */}
-        <TouchableOpacity
-          style={[styles.voiceCard, shadows.card]}
-          onPress={() => navigation.navigate('AddProduct', { screen: 'Voice' })}
-          activeOpacity={0.85}
-          accessibilityLabel="Describe product by voice"
-        >
-          <View style={styles.voiceInner}>
-            <Ionicons name="mic" size={rs(20)} color={colors.secondary} />
-            <Text style={styles.voiceText}>Describe by Voice</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={rs(16)} color={colors.textSecondary} />
-        </TouchableOpacity>
-
         {/* ── Quick access: My Products + Smart Pricing ── */}
         <View style={[styles.quickRow, { gap: cardGap }]}>
           <TouchableOpacity
             style={[styles.quickCard, shadows.card]}
+            onPress={() => (navigation.getParent() as any)?.navigate('Products')}
             activeOpacity={0.85}
             accessibilityLabel="My Products"
           >
@@ -291,26 +301,6 @@ const styles = StyleSheet.create({
   addProductArrow: {
     flexShrink: 0,
     marginLeft: rs(8),
-  },
-  voiceCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surface,
-    borderRadius: rs(12),
-    paddingHorizontal: rs(16),
-    paddingVertical: rs(14),
-    marginBottom: rs(14),
-  },
-  voiceInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: rs(10),
-  },
-  voiceText: {
-    fontSize: rf(14),
-    fontWeight: '600',
-    color: colors.textPrimary,
   },
   quickRow: {
     flexDirection: 'row',

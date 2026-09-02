@@ -1,14 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from datetime import datetime, timezone, timedelta
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from pydantic import BaseModel, Field
-from typing import Optional
 
 from app.database.connection import get_db
 from app.api.deps import get_current_user, ensure_artisan_profile
 from app.models.user import User, ArtisanProfile
 from app.models.product import Product
-from app.models.order import Order, OrderStatus
+from app.models.order import Order, OrderStatus, OrderItem
 from app.schemas.product import DashboardResponse
 
 router = APIRouter()
@@ -22,7 +23,6 @@ class ProfileResponse(BaseModel):
     address: Optional[str] = None
     role: str
     is_verified: bool
-    # Artisan profile fields (optional)
     business_name: Optional[str] = None
     craft_type: Optional[str] = None
     location: Optional[str] = None
@@ -45,6 +45,24 @@ class ProfileUpdate(BaseModel):
     bio: Optional[str] = None
 
 
+def build_profile_response(user: User, artisan: Optional[ArtisanProfile] = None) -> ProfileResponse:
+    role_val = user.role.value if hasattr(user.role, 'value') else str(user.role)
+    return ProfileResponse(
+        id=str(user.id),
+        name=user.name,
+        email=user.email,
+        phone=user.phone,
+        address=user.address,
+        role=role_val,
+        is_verified=user.is_verified,
+        business_name=artisan.business_name if artisan else None,
+        craft_type=artisan.craft_type if artisan else None,
+        location=artisan.location if artisan else None,
+        state=artisan.state if artisan else None,
+        bio=artisan.bio if artisan else None,
+    )
+
+
 @router.get("/", response_model=ProfileResponse)
 def get_profile(
     current_user: User = Depends(get_current_user),
@@ -54,31 +72,7 @@ def get_profile(
     artisan = db.query(ArtisanProfile).filter(
         ArtisanProfile.user_id == current_user.id
     ).first()
-
-    response = {
-        "id": str(current_user.id),
-        "name": current_user.name,
-        "email": current_user.email,
-        "phone": current_user.phone,
-        "address": current_user.address,
-        "role": current_user.role.value if hasattr(current_user.role, 'value') else current_user.role,
-        "is_verified": current_user.is_verified,
-    }
-
-    if artisan:
-        response.update({
-            "business_name": artisan.business_name,
-            "craft_type": artisan.craft_type,
-            "location": artisan.location,
-            "state": artisan.state,
-            "bio": artisan.bio,
-            "years_experience": artisan.years_experience,
-            "products_count": artisan.products_count,
-            "orders_count": artisan.orders_count,
-            "rating": artisan.rating,
-        })
-
-    return response
+    return build_profile_response(current_user, artisan)
 
 
 @router.put("/", response_model=ProfileResponse)
@@ -92,10 +86,8 @@ def update_profile(
     db_user = db.query(User).filter(User.id == current_user.id).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
-
     update_data = payload.model_dump(exclude_unset=True)
 
-    # Separate user fields from artisan profile fields
     user_fields = {"name", "phone", "address"}
     artisan_fields = {"business_name", "craft_type", "location", "state", "bio"}
 
@@ -103,12 +95,14 @@ def update_profile(
         if key in user_fields:
             setattr(db_user, key, value)
 
-    # Handle artisan profile updates
     artisan_updates = {k: v for k, v in update_data.items() if k in artisan_fields}
+    artisan = None
     if artisan_updates:
         artisan = ensure_artisan_profile(db, db_user)
         for key, value in artisan_updates.items():
             setattr(artisan, key, value)
+    else:
+        artisan = db.query(ArtisanProfile).filter(ArtisanProfile.user_id == db_user.id).first()
 
     db.commit()
     db.refresh(db_user)
@@ -118,11 +112,11 @@ def update_profile(
 
 @router.get("/dashboard", response_model=DashboardResponse)
 def get_dashboard(
+    period: str = Query("month", description="Time period filter: week, month, year"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get aggregated dashboard statistics for the authenticated artisan."""
-    # Count products
+    """Get aggregated dashboard statistics for the authenticated artisan for week, month, or year."""
     products_count = (
         db.query(func.count(Product.id))
         .filter(Product.artisan_id == current_user.id)
@@ -130,35 +124,73 @@ def get_dashboard(
         .scalar()
     ) or 0
 
-    # Count orders
-    orders_count = (
-        db.query(func.count(Order.id))
-        .filter(Order.artisan_id == current_user.id)
-        .filter(Order.deleted_at.is_(None))
-        .scalar()
-    ) or 0
+    now = datetime.now(timezone.utc)
 
-    # Count new orders
+    if period == "today":
+        start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        divisor = 1.0
+    elif period == "week":
+        start_date = (now - timedelta(days=now.weekday())).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        divisor = 7.0
+    elif period == "year":
+        start_date = datetime(now.year, 1, 1, tzinfo=timezone.utc)
+        divisor = 12.0
+    else:
+        period = "month"
+        start_date = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+        divisor = 4.0
+
+    accepted_statuses = [
+        OrderStatus.ACCEPTED,
+        OrderStatus.PROCESSING,
+        OrderStatus.SHIPPED,
+        OrderStatus.DELIVERED,
+        OrderStatus.COMPLETED,
+    ]
+
+    period_orders = (
+        db.query(Order)
+        .options(joinedload(Order.items))
+        .filter(Order.deleted_at.is_(None))
+        .filter(
+            (Order.artisan_id == current_user.id) |
+            (Order.items.any(OrderItem.seller_id == current_user.id))
+        )
+        .filter(Order.status.in_(accepted_statuses))
+        .filter(Order.created_at >= start_date)
+        .all()
+    )
+
+    orders_count = len(period_orders)
+
+    total_sales = 0.0
+    for order in period_orders:
+        seller_items = [i for i in order.items if i.seller_id == current_user.id]
+        if seller_items:
+            total_sales += sum(float(i.subtotal) for i in seller_items)
+        else:
+            total_sales += float(order.total_amount)
+
+    avg_sales = total_sales / divisor if divisor > 0 else 0.0
+
     new_orders_count = (
         db.query(func.count(Order.id))
-        .filter(Order.artisan_id == current_user.id)
+        .filter(
+            (Order.artisan_id == current_user.id) |
+            (Order.items.any(OrderItem.seller_id == current_user.id))
+        )
         .filter(Order.status == OrderStatus.PENDING)
         .filter(Order.deleted_at.is_(None))
         .scalar()
     ) or 0
-
-    # Total sales (completed orders)
-    total_sales = (
-        db.query(func.sum(Order.total_amount))
-        .filter(Order.artisan_id == current_user.id)
-        .filter(Order.status.in_([OrderStatus.COMPLETED, OrderStatus.DELIVERED]))
-        .filter(Order.deleted_at.is_(None))
-        .scalar()
-    ) or 0.0
 
     return {
         "products_count": products_count,
         "orders_count": orders_count,
         "total_sales": float(total_sales),
         "new_orders_count": new_orders_count,
+        "period": period,
+        "avg_sales": float(avg_sales),
     }

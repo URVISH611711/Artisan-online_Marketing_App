@@ -23,6 +23,7 @@ interface HeaderProps {
   rightText?: string;
   greeting?: string;
   greetingName?: string;
+  onProfilePress?: () => void;
   style?: ViewStyle;
   transparent?: boolean;
 }
@@ -39,6 +40,7 @@ export const Header: React.FC<HeaderProps> = ({
   rightText,
   greeting,
   greetingName,
+  onProfilePress,
   style,
   transparent = false,
 }) => {
@@ -56,7 +58,13 @@ export const Header: React.FC<HeaderProps> = ({
         ]}
       >
         {/* Left: avatar + greeting — flex: 1 so it takes remaining space */}
-        <View style={styles.greetingRow}>
+        <TouchableOpacity
+          style={styles.greetingRow}
+          onPress={onProfilePress}
+          activeOpacity={onProfilePress ? 0.7 : 1}
+          disabled={!onProfilePress}
+          accessibilityLabel="Go to Profile"
+        >
           <View style={styles.avatarPlaceholder}>
             <Ionicons name="person" size={rs(18)} color={colors.textSecondary} />
           </View>
@@ -69,7 +77,7 @@ export const Header: React.FC<HeaderProps> = ({
               {greetingName}
             </Text>
           </View>
-        </View>
+        </TouchableOpacity>
 
         {/* Right: notification icon */}
         {onCartPress && (<TouchableOpacity onPress={onCartPress} style={styles.iconButton} accessibilityLabel={`Cart, ${cartCount} items`} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Ionicons name="cart-outline" size={rs(22)} color={colors.textPrimary} />{cartCount > 0 && (<CountBadge count={cartCount} style={styles.notifBadge} />)}</TouchableOpacity>)}{onNotifications && (

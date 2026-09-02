@@ -39,7 +39,7 @@ export const Input: React.FC<InputProps> = ({
 
   return (
     <View style={[styles.container, containerStyle]}>
-      {label && <Text style={styles.label}>{label}</Text>}
+      {!!label && <Text style={styles.label}>{label}</Text>}
       <View
         style={[
           styles.inputContainer,
@@ -47,9 +47,13 @@ export const Input: React.FC<InputProps> = ({
           error && styles.inputError,
         ]}
       >
-        {icon && <View style={{ paddingLeft: 12, justifyContent: 'center' }}><Ionicons name={icon} size={20} color={colors.textSecondary} /></View>}
-        {leftIcon && <View style={{ marginLeft: 16 }}>{leftIcon}</View>}
-        {prefix && (
+        {!!icon && (
+          <View style={{ paddingLeft: 12, justifyContent: 'center' }}>
+            <Ionicons name={icon} size={20} color={colors.textSecondary} />
+          </View>
+        )}
+        {!!leftIcon && <View style={{ marginLeft: 16 }}>{leftIcon}</View>}
+        {!!prefix && (
           <View style={styles.prefixContainer}>
             <Text style={styles.prefix}>{prefix}</Text>
             <View style={styles.prefixDivider} />
@@ -75,9 +79,9 @@ export const Input: React.FC<InputProps> = ({
             />
           </TouchableOpacity>
         )}
-        {suffix && <View style={styles.suffixContainer}>{suffix}</View>}
+        {!!suffix && <View style={styles.suffixContainer}>{suffix}</View>}
       </View>
-      {error && <Text style={styles.error}>{error}</Text>}
+      {!!error && <Text style={styles.error}>{error}</Text>}
     </View>
   );
 };

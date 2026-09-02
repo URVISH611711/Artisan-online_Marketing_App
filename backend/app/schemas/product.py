@@ -129,3 +129,5 @@ class DashboardResponse(BaseModel):
     orders_count: int
     total_sales: float
     new_orders_count: int
+    period: Optional[str] = "month"
+    avg_sales: Optional[float] = 0.0

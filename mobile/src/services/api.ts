@@ -122,10 +122,12 @@ export interface DashboardData {
   orders_count: number;
   total_sales: number;
   new_orders_count: number;
+  period?: string;
+  avg_sales?: number;
 }
 
-export async function fetchDashboard(): Promise<DashboardData> {
-  return apiFetch<DashboardData>('/profile/dashboard');
+export async function fetchDashboard(period: 'today' | 'week' | 'month' | 'year' = 'today'): Promise<DashboardData> {
+  return apiFetch<DashboardData>(`/profile/dashboard?period=${period}`);
 }
 
 // ─── Products ────────────────────────────────────────────────────

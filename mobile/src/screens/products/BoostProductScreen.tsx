@@ -254,13 +254,13 @@ export const BoostProductScreen: React.FC<Props> = ({ navigation, route }) => {
       setSeoTitle(cleanVal(seo.title) || currentProduct?.seo?.title || '');
       setSeoMeta(cleanVal(seo.meta_description) || currentProduct?.seo?.meta_description || '');
 
-      const newKeywords = Array.isArray(seo.keywords) ? seo.keywords : (seo.keywords ? seo.keywords.split(',').map((k: string) => k.trim()) : []);
-      const oldKeywords = currentProduct?.keywords || [];
+      const newKeywords = Array.isArray(seo.keywords) ? seo.keywords : (typeof seo.keywords === 'string' ? (seo.keywords as string).split(',').map((k: string) => k.trim()) : []);
+      const oldKeywords = (currentProduct as any)?.keywords || [];
       const mergedKeywords = Array.from(new Set([...newKeywords, ...oldKeywords]));
       setKeywordsText(mergedKeywords.join(', '));
 
-      const newTags = Array.isArray(seo.tags) ? seo.tags : (seo.tags ? seo.tags.split(',').map((t: string) => t.trim()) : []);
-      const oldTags = currentProduct?.seo?.tags || [];
+      const newTags = Array.isArray(seo.tags) ? seo.tags : (typeof seo.tags === 'string' ? (seo.tags as string).split(',').map((t: string) => t.trim()) : []);
+      const oldTags = (currentProduct as any)?.seo?.tags || [];
       const mergedTags = Array.from(new Set([...newTags, ...oldTags]));
       setTagsText(mergedTags.join(', '));
 
