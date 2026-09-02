@@ -573,8 +573,14 @@ export async function autoDescribeProduct(imageUri: string): Promise<any> {
       ext === 'webp' ? 'image/webp' :
         'image/jpeg';
 
+  // Ensure file:// prefix for Android
+  let validUri = imageUri;
+  if (!validUri.startsWith('file://') && !validUri.startsWith('ph://') && !validUri.startsWith('http')) {
+    validUri = 'file://' + validUri;
+  }
+
   formData.append('image', {
-    uri: imageUri,
+    uri: validUri,
     name: filename,
     type: mimeType,
   } as any);
@@ -583,6 +589,7 @@ export async function autoDescribeProduct(imageUri: string): Promise<any> {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `${API_URL}/products/auto-describe`);
     xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.setRequestHeader('bypass-tunnel-reminder', 'true');
     xhr.onload = () => {
       try {
         const data = JSON.parse(xhr.responseText);
@@ -595,7 +602,10 @@ export async function autoDescribeProduct(imageUri: string): Promise<any> {
         reject(new Error('Invalid response'));
       }
     };
-    xhr.onerror = () => reject(new Error('Network error'));
+    xhr.onerror = (e) => {
+      console.error('[autoDescribeProduct] XMLHttpRequest network error:', e);
+      reject(new Error('Network error'));
+    };
     xhr.send(formData);
   });
 }

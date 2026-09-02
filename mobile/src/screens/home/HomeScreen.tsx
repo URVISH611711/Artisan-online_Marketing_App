@@ -174,7 +174,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
             style={[styles.quickCard, shadows.card]}
             activeOpacity={0.85}
             accessibilityLabel="My Products"
-            onPress={() => (navigation.getParent() as any)?.navigate('Products', { screen: 'ProductsList' })}
+            onPress={() => (navigation.getParent() as any)?.navigate('Products', { screen: 'ProductsList', params: { mode: 'my_products' } })}
           >
             <Ionicons name="grid-outline" size={rs(26)} color={colors.primary} />
             <Text style={styles.quickTitle}>My Products</Text>

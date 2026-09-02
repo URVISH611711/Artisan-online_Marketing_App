@@ -109,7 +109,8 @@ export const CameraScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <CameraView ref={cameraRef} style={styles.camera} facing={facing}>
+      <CameraView ref={cameraRef} style={styles.camera} facing={facing} />
+      <View style={StyleSheet.absoluteFill}>
         {/* Header */}
         <SafeAreaView>
           <View style={styles.header}>
@@ -187,7 +188,7 @@ export const CameraScreen: React.FC<Props> = ({ navigation }) => {
             </View>
           )}
         </View>
-      </CameraView>
+      </View>
     </View>
   );
 };

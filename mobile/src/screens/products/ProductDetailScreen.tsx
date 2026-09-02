@@ -233,9 +233,7 @@ export const ProductDetailScreen: React.FC<Props> = ({ navigation, route }) => {
             loading={publishing}
           />
         )}
-        {statusKey === 'live' && (
-          <Button title="Boost Product" onPress={() => {}} icon="trending-up-outline" iconPosition="right" />
-        )}
+
         {/* Smart Price — AI-powered pricing from product detail */}
         <TouchableOpacity
           style={styles.smartPriceBtn}

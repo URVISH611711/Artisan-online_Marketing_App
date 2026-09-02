@@ -54,7 +54,7 @@ export type HomeStackParamList = {
 
 // Products stack
 export type ProductsStackParamList = {
-  ProductsList: undefined;
+  ProductsList: { mode?: 'my_products' | 'marketplace' } | undefined;
   ProductDetail: { productId: string };
   EditProduct: { productId: string };
   BoostProduct: { productId: string };

@@ -15,15 +15,27 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCart } from '../../context/CartContext';
 
-type Props = { navigation: NativeStackNavigationProp<ProductsStackParamList, 'ProductsList'> };
+import { RouteProp } from '@react-navigation/native';
+
+type Props = { 
+  navigation: NativeStackNavigationProp<ProductsStackParamList, 'ProductsList'>;
+  route: RouteProp<ProductsStackParamList, 'ProductsList'>;
+};
 
 type Mode = 'my_products' | 'marketplace';
 type Filter = 'All' | 'Live' | 'Draft' | 'Out of Stock';
 const FILTERS: Filter[] = ['All', 'Live', 'Draft', 'Out of Stock'];
 
-export const ProductsScreen: React.FC<Props> = ({ navigation }) => {
+export const ProductsScreen: React.FC<Props> = ({ navigation, route }) => {
   const { cartCount } = useCart();
   const [mode, setMode] = useState<Mode>('my_products');
+
+  React.useEffect(() => {
+    if (route.params?.mode) {
+      setMode(route.params.mode);
+    }
+  }, [route.params?.mode]);
+
   const [categories, setCategories] = useState<string[]>(['All']);
 
   useFocusEffect(
