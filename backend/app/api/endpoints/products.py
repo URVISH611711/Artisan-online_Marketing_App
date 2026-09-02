@@ -86,7 +86,7 @@ def list_marketplace_products(
         .options(
             joinedload(Product.images),
             joinedload(Product.inventory),
-            joinedload(Product.artisan),
+            joinedload(Product.artisan).joinedload("user"),
             selectinload(Product.translations),
             selectinload(Product.keywords),
         )
@@ -131,7 +131,7 @@ def get_product(
         .options(
             joinedload(Product.images),
             joinedload(Product.inventory),
-            joinedload(Product.artisan),
+            joinedload(Product.artisan).joinedload("user"),
             selectinload(Product.translations),
             selectinload(Product.keywords),
         )

@@ -48,6 +48,7 @@ class ArtisanProfileCreate(ArtisanProfileBase):
 
 class ArtisanProfileResponse(ArtisanProfileBase):
     user_id: UUID
+    name: Optional[str] = None
     products_count: int
     orders_count: int
     rating: float

@@ -20,6 +20,10 @@ export interface Product {
   orders: number;
   rating?: number;
   artisanId: string;
+  length?: number;
+  width?: number;
+  diameter?: number;
+  dimension_unit?: string;
   createdAt: string;
   updatedAt: string;
 }

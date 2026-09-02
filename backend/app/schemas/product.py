@@ -55,6 +55,10 @@ class ProductResponse(BaseModel):
     views: int
     orders: int
     rating: Optional[float] = None
+    length: Optional[float] = None
+    width: Optional[float] = None
+    diameter: Optional[float] = None
+    dimension_unit: Optional[str] = None
     images: List[ProductImageResponse] = []
     inventory: Optional[InventoryResponse] = None
     artisan: Optional[ArtisanProfileResponse] = None

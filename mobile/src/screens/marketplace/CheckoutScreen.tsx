@@ -14,6 +14,7 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const [loading, setLoading] = useState(false);
 
   const handleCheckout = async () => {
+    if (loading) return; // Prevent double taps during React re-render cycle
     if (!address.trim()) {
       Alert.alert('Required', 'Please enter a shipping address');
       return;

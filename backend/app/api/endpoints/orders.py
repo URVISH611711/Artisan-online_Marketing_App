@@ -267,28 +267,31 @@ def checkout_cart(
         if product.status != ProductStatus.PUBLISHED:
             raise HTTPException(status_code=400, detail=f"'{product.name}' is not available for purchase")
 
-        # Lock the inventory row. Concurrent checkouts serialize here, so two
-        # buyers can never both claim the last unit — the DB, not the client,
-        # decides whether the sale succeeds.
-        inventory = (
+        # Atomic lock-free UPDATE for inventory decrement to prevent race conditions.
+        # This is more scalable than row locking and strictly enforces stock limits.
+        update_stmt = (
             db.query(Inventory)
-            .filter(Inventory.product_id == cart_item.product_id)
-            .with_for_update()
-            .first()
+            .filter(Inventory.product_id == cart_item.product_id, Inventory.available_quantity >= cart_item.quantity)
+            .update({"available_quantity": Inventory.available_quantity - cart_item.quantity, "sold_quantity": Inventory.sold_quantity + cart_item.quantity}, synchronize_session=False)
         )
-        if not inventory or inventory.available_quantity < cart_item.quantity:
+        
+        if update_stmt == 0:
+            # If 0 rows were updated, it means either the product doesn't exist or available_quantity < cart_item.quantity
+            inventory = db.query(Inventory).filter(Inventory.product_id == cart_item.product_id).first()
             available = inventory.available_quantity if inventory else 0
             raise HTTPException(
                 status_code=400,
                 detail=f"Only {available} left of '{product.name}'",
             )
+        
+        # Fetch the updated inventory to reconcile product availability status
+        inventory = db.query(Inventory).filter(Inventory.product_id == cart_item.product_id).first()
 
         # Price is read from the DB product, never trusted from the request.
         subtotal = float(product.price) * cart_item.quantity
         total_amount += subtotal
 
-        inventory.available_quantity -= cart_item.quantity
-        inventory.sold_quantity += cart_item.quantity
+
         product.orders = (product.orders or 0) + 1
         # Auto de-list when the last unit sells; the product stays visible in
         # the marketplace as OUT_OF_STOCK, just not purchasable.

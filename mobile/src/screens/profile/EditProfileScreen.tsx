@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, TouchableOpacity
+  ActivityIndicator, Alert, Platform, TouchableOpacity
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ProfileStackParamList } from '../../navigation/types';
@@ -29,9 +30,9 @@ const TopBar = ({ title, onBack }: { title: string, onBack: () => void }) => (
 );
 
 const Field = ({
-  label, value, onChange, placeholder, disabled = false, keyboardType = 'default'
+  label, value, onChange, placeholder, disabled = false, keyboardType = 'default', autoCapitalize = 'sentences'
 }: {
-  label: string, value: string, onChange?: (t: string) => void, placeholder?: string, disabled?: boolean, keyboardType?: any
+  label: string, value: string, onChange?: (t: string) => void, placeholder?: string, disabled?: boolean, keyboardType?: any, autoCapitalize?: any
 }) => (
   <View style={styles.field}>
     <Text style={styles.fieldLabel}>{label}</Text>
@@ -44,6 +45,7 @@ const Field = ({
         placeholderTextColor={colors.textTertiary}
         editable={!disabled}
         keyboardType={keyboardType}
+        autoCapitalize={autoCapitalize}
       />
       {disabled && (
         <Ionicons name="lock-closed" size={16} color={colors.textTertiary} style={styles.lockIcon} />
@@ -99,25 +101,29 @@ export const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <TopBar title="Edit Profile" onBack={() => navigation.goBack()} />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        enableOnAndroid={true}
+        extraScrollHeight={20}
+      >
 
-          <Text style={styles.sectionTitle}>Personal Information</Text>
-          <Card padding="md" style={styles.card}>
-            <Field label="Full Name" value={name} onChange={setName} placeholder="Your name" />
-            <Field label="Mobile Number" value={phone} onChange={setPhone} placeholder="e.g. 9876543210" keyboardType="phone-pad" />
-            <Field label="Email" value={email} disabled={true} />
-          </Card>
+        <Text style={styles.sectionTitle}>Personal Information</Text>
+        <Card padding="md" style={styles.card}>
+          <Field label="Full Name" value={name} onChange={setName} placeholder="Your name" autoCapitalize="words" />
+          <Field label="Mobile Number" value={phone} onChange={setPhone} placeholder="e.g. 9876543210" keyboardType="phone-pad" />
+          <Field label="Email" value={email} disabled={true} autoCapitalize="none" />
+        </Card>
 
-          <Text style={styles.sectionTitle}>Business Information</Text>
-          <Card padding="md" style={styles.card}>
-            <Field label="Business Name" value={businessName} onChange={setBusinessName} placeholder="Your business name" />
-            <Field label="Address" value={address} onChange={setAddress} placeholder="City, State" />
-            <Field label="Craft Type / Tags" value={craftType} onChange={setCraftType} placeholder="e.g. Pottery, Handicraft" />
-          </Card>
+        <Text style={styles.sectionTitle}>Business Information</Text>
+        <Card padding="md" style={styles.card}>
+          <Field label="Business Name" value={businessName} onChange={setBusinessName} placeholder="Your business name" autoCapitalize="words" />
+          <Field label="Address" value={address} onChange={setAddress} placeholder="City, State" autoCapitalize="sentences" />
+          <Field label="Craft Type / Tags" value={craftType} onChange={setCraftType} placeholder="e.g. Pottery, Handicraft" autoCapitalize="words" />
+        </Card>
 
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
 
       <View style={styles.footer}>
         <Button

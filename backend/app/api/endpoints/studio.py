@@ -660,22 +660,21 @@ async def studio_publish(
         raise HTTPException(status_code=400, detail="Job is not complete — wait for COMPLETED status")
 
     details = payload.product_details
+    details_dict = details.model_dump() if hasattr(details, "model_dump") else (details.dict() if hasattr(details, "dict") else (details if isinstance(details, dict) else {}))
     ensure_artisan_profile(db, current_user)
 
-    seo_data = details.seo if hasattr(details, 'seo') else details.get("seo") if isinstance(details, dict) else None
+    seo_data = details_dict.get("seo")
     
     attributes = {}
-    if any([getattr(details, k, None) for k in ["key_features", "intended_use", "target_customer", "style"]]):
+    if any(details_dict.get(k) for k in ["key_features", "intended_use", "target_customer", "style"]):
         attributes.update({
-            "key_features": getattr(details, "key_features", None),
-            "intended_use": getattr(details, "intended_use", None),
-            "target_customer": getattr(details, "target_customer", None),
-            "style": getattr(details, "style", None),
+            "key_features": details_dict.get("key_features"),
+            "intended_use": details_dict.get("intended_use"),
+            "target_customer": details_dict.get("target_customer"),
+            "style": details_dict.get("style"),
         })
     if seo_data:
         attributes["seo"] = seo_data
-
-    details_dict = details.model_dump() if hasattr(details, "model_dump") else (details.dict() if hasattr(details, "dict") else (details if isinstance(details, dict) else {}))
     
     product = Product(
         id=uuid.uuid4(),
@@ -697,7 +696,7 @@ async def studio_publish(
     )
     db.add(product)
     
-    translations_data = details.translations if hasattr(details, 'translations') else details.get("translations") if isinstance(details, dict) else None
+    translations_data = details_dict.get("translations")
     if translations_data:
         from app.models.product import ProductTranslation
         for lang_code, trans in translations_data.items():
@@ -727,7 +726,7 @@ async def studio_publish(
 
     inv = Inventory(
         product_id=product.id,
-        available_quantity=details.quantity or 0,
+        available_quantity=details_dict.get("quantity") or 0,
     )
     db.add(inv)
 

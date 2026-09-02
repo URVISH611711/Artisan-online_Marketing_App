@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, TextInput,
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform
+  ActivityIndicator, Alert, Platform
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -34,10 +35,10 @@ const langLabel = (code?: string) => {
 
 // ── Reusable editable field ──
 const Field = ({
-  label, value, onChange, multiline, placeholder, keyboardType,
+  label, value, onChange, multiline, placeholder, keyboardType, autoCapitalize = 'sentences'
 }: {
   label: string; value: string; onChange: (t: string) => void;
-  multiline?: boolean; placeholder?: string; keyboardType?: 'default' | 'numeric';
+  multiline?: boolean; placeholder?: string; keyboardType?: 'default' | 'numeric'; autoCapitalize?: any;
 }) => (
   <View style={styles.field}>
     <View style={styles.fieldLabelRow}>
@@ -48,9 +49,9 @@ const Field = ({
       value={value}
       onChangeText={onChange}
       multiline={multiline}
-      placeholder={placeholder}
       placeholderTextColor={colors.textTertiary}
       keyboardType={keyboardType || 'default'}
+      autoCapitalize={autoCapitalize}
     />
   </View>
 );
@@ -412,64 +413,62 @@ export const BoostProductScreen: React.FC<Props> = ({ navigation, route }) => {
     return (
       <SafeAreaView style={styles.container}>
         <TopBar title="Review & Edit" />
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-            <Text style={styles.subtitle}>
-              AI-generated from your voice note. Review and correct every field before saving —
-              nothing is invented; blanks mean it wasn't mentioned.
-            </Text>
+        <KeyboardAwareScrollView style={{ flex: 1 }} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" enableOnAndroid={true} extraScrollHeight={20}>
+          <Text style={styles.subtitle}>
+            AI-generated from your voice note. Review and correct every field before saving —
+            nothing is invented; blanks mean it wasn't mentioned.
+          </Text>
 
-            {catalog?.image_check?.mismatch && !mismatchDismissed && (
-              <View style={styles.mismatchBanner}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.mismatchTitle}>⚠️ Possible mismatch</Text>
-                  <Text style={styles.mismatchMsg}>
-                    {catalog.image_check.message ||
-                      'What you described may not match the product photo. Please double-check.'}
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={() => setMismatchDismissed(true)} style={styles.mismatchClose}>
-                  <Ionicons name="close" size={18} color={colors.textSecondary} />
-                </TouchableOpacity>
+          {catalog?.image_check?.mismatch && !mismatchDismissed && (
+            <View style={styles.mismatchBanner}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.mismatchTitle}>⚠️ Possible mismatch</Text>
+                <Text style={styles.mismatchMsg}>
+                  {catalog.image_check.message ||
+                    'What you described may not match the product photo. Please double-check.'}
+                </Text>
               </View>
-            )}
-
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Product Details</Text>
-              {hasLowConfidence && <Text style={styles.verifyFlag}>⚠️ Please verify</Text>}
+              <TouchableOpacity onPress={() => setMismatchDismissed(true)} style={styles.mismatchClose}>
+                <Ionicons name="close" size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
             </View>
-            <Field label="Name" value={name} onChange={setName} placeholder="Not provided" />
-            <Field label="Material" value={material} onChange={setMaterial} placeholder="Not provided" />
-            <Field label="Craft Type" value={craftType} onChange={setCraftType} placeholder="Not provided" />
-            <Field label="Color" value={color} onChange={setColor} placeholder="Not provided" />
-            <Field label="Origin" value={origin} onChange={setOrigin} placeholder="Not provided" />
-            
-            <Text style={[styles.sectionTitle, { marginTop: 16, marginBottom: 10 }]}>Structured Dimensions</Text>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <View style={{ flex: 1 }}>
-                <Field label="Length (cm)" value={length} onChange={setLength} placeholder="e.g. 20" keyboardType="numeric" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Field label="Width (cm)" value={width} onChange={setWidth} placeholder="e.g. 15" keyboardType="numeric" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Field label="Diameter (cm)" value={diameter} onChange={setDiameter} placeholder="e.g. 10" keyboardType="numeric" />
-              </View>
+          )}
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Product Details</Text>
+            {hasLowConfidence && <Text style={styles.verifyFlag}>⚠️ Please verify</Text>}
+          </View>
+          <Field label="Name" value={name} onChange={setName} placeholder="Not provided" autoCapitalize="sentences" />
+          <Field label="Material" value={material} onChange={setMaterial} placeholder="Not provided" autoCapitalize="sentences" />
+          <Field label="Craft Type" value={craftType} onChange={setCraftType} placeholder="Not provided" autoCapitalize="sentences" />
+          <Field label="Color" value={color} onChange={setColor} placeholder="Not provided" autoCapitalize="sentences" />
+          <Field label="Origin" value={origin} onChange={setOrigin} placeholder="Not provided" autoCapitalize="sentences" />
+          
+          <Text style={[styles.sectionTitle, { marginTop: 16, marginBottom: 10 }]}>Structured Dimensions</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={{ flex: 1 }}>
+              <Field label="Length (cm)" value={length} onChange={setLength} placeholder="e.g. 20" keyboardType="numeric" autoCapitalize="none" />
             </View>
+            <View style={{ flex: 1 }}>
+              <Field label="Width (cm)" value={width} onChange={setWidth} placeholder="e.g. 15" keyboardType="numeric" autoCapitalize="none" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Field label="Diameter (cm)" value={diameter} onChange={setDiameter} placeholder="e.g. 10" keyboardType="numeric" autoCapitalize="none" />
+            </View>
+          </View>
 
-            <Field label="Price (₹)" value={price} onChange={setPrice} placeholder="Leave blank to keep current" keyboardType="numeric" />
+          <Field label="Price (₹)" value={price} onChange={setPrice} placeholder="Leave blank to keep current" keyboardType="numeric" autoCapitalize="none" />
 
-            <Field label="Description" value={enDesc} onChange={setEnDesc} multiline placeholder="Professional English description" />
+          <Field label="Description" value={enDesc} onChange={setEnDesc} multiline placeholder="Professional English description" autoCapitalize="sentences" />
 
 
 
-            <Text style={styles.sectionTitle}>SEO</Text>
-            <Field label="SEO Title" value={seoTitle} onChange={setSeoTitle} placeholder="Search-friendly title" />
-            <Field label="Meta Description" value={seoMeta} onChange={setSeoMeta} multiline placeholder="Short meta description" />
-            <Field label="Keywords (comma-separated)" value={keywordsText} onChange={setKeywordsText} placeholder="e.g. handloom, patola, silk" />
-            <Field label="Tags (comma-separated)" value={tagsText} onChange={setTagsText} placeholder="e.g. traditional, festive" />
-          </ScrollView>
-        </KeyboardAvoidingView>
+          <Text style={styles.sectionTitle}>SEO</Text>
+          <Field label="SEO Title" value={seoTitle} onChange={setSeoTitle} placeholder="Search-friendly title" autoCapitalize="sentences" />
+          <Field label="Meta Description" value={seoMeta} onChange={setSeoMeta} multiline placeholder="Short meta description" autoCapitalize="sentences" />
+          <Field label="Keywords (comma-separated)" value={keywordsText} onChange={setKeywordsText} placeholder="e.g. handloom, patola, silk" autoCapitalize="none" />
+          <Field label="Tags (comma-separated)" value={tagsText} onChange={setTagsText} placeholder="e.g. traditional, festive" autoCapitalize="none" />
+        </KeyboardAwareScrollView>
 
         <View style={styles.footer}>
           <Button title={saving ? 'Saving…' : (productId ? 'Save to Product' : 'Next: Choose Background')} onPress={handleSave} loading={saving} />
@@ -482,80 +481,78 @@ export const BoostProductScreen: React.FC<Props> = ({ navigation, route }) => {
   return (
     <SafeAreaView style={styles.container}>
       <TopBar title="Boost Product" />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <Text style={styles.title}>Describe your product</Text>
-          <Text style={styles.subtitle}>
-            Speak naturally in Gujarati, Hindi, or English. We'll turn it into a professional
-            bilingual listing. You can also type below.
+      <KeyboardAwareScrollView style={{ flex: 1 }} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" enableOnAndroid={true} extraScrollHeight={20}>
+        <Text style={styles.title}>Describe your product</Text>
+        <Text style={styles.subtitle}>
+          Speak naturally in Gujarati, Hindi, or English. We'll turn it into a professional
+          bilingual listing. You can also type below.
+        </Text>
+
+        <View style={styles.micContainer}>
+          <View style={styles.micStage}>
+            {/* Live halo — grows with your actual voice level. No movement = no input. */}
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.halo,
+                {
+                  opacity: meterAnim.interpolate({ inputRange: [0, 1], outputRange: [0.12, 0.55] }),
+                  transform: [{ scale: meterAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 2] }) }],
+                },
+              ]}
+            />
+            <TouchableOpacity
+              style={[styles.micButton, isRecording && styles.micButtonRecording]}
+              onPress={handleMicPress}
+              activeOpacity={0.8}
+              disabled={isTranscribing}
+            >
+              {isTranscribing ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Ionicons name={isRecording ? 'stop' : 'mic'} size={36} color="#fff" />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.micLabel}>
+            {isTranscribing
+              ? 'Transcribing…'
+              : isRecording
+                ? `● Recording ${Math.floor((recorderState.durationMillis || 0) / 1000)}s`
+                : 'Tap and start speaking'}
           </Text>
 
-          <View style={styles.micContainer}>
-            <View style={styles.micStage}>
-              {/* Live halo — grows with your actual voice level. No movement = no input. */}
-              <Animated.View
-                pointerEvents="none"
-                style={[
-                  styles.halo,
-                  {
-                    opacity: meterAnim.interpolate({ inputRange: [0, 1], outputRange: [0.12, 0.55] }),
-                    transform: [{ scale: meterAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 2] }) }],
-                  },
-                ]}
-              />
-              <TouchableOpacity
-                style={[styles.micButton, isRecording && styles.micButtonRecording]}
-                onPress={handleMicPress}
-                activeOpacity={0.8}
-                disabled={isTranscribing}
-              >
-                {isTranscribing ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Ionicons name={isRecording ? 'stop' : 'mic'} size={36} color="#fff" />
-                )}
-              </TouchableOpacity>
+          {/* Level meter — the bar jumps as you speak, proving the mic is capturing. */}
+          {isRecording && (
+            <View style={styles.levelTrack}>
+              <View style={[styles.levelFill, { width: `${Math.round(level * 100)}%` }]} />
             </View>
+          )}
+          {isRecording && level < 0.05 && (
+            <Text style={styles.silentHint}>No sound detected yet — speak a little louder.</Text>
+          )}
 
-            <Text style={styles.micLabel}>
-              {isTranscribing
-                ? 'Transcribing…'
-                : isRecording
-                  ? `● Recording ${Math.floor((recorderState.durationMillis || 0) / 1000)}s`
-                  : 'Tap and start speaking'}
-            </Text>
+          {permissionDenied && (
+            <Text style={styles.silentHint}>Microphone access is blocked. Enable it in Settings.</Text>
+          )}
+          {detectedLang && !isRecording && !isTranscribing && (
+            <Text style={styles.langNote}>Detected: {langLabel(detectedLang)}</Text>
+          )}
+        </View>
 
-            {/* Level meter — the bar jumps as you speak, proving the mic is capturing. */}
-            {isRecording && (
-              <View style={styles.levelTrack}>
-                <View style={[styles.levelFill, { width: `${Math.round(level * 100)}%` }]} />
-              </View>
-            )}
-            {isRecording && level < 0.05 && (
-              <Text style={styles.silentHint}>No sound detected yet — speak a little louder.</Text>
-            )}
-
-            {permissionDenied && (
-              <Text style={styles.silentHint}>Microphone access is blocked. Enable it in Settings.</Text>
-            )}
-            {detectedLang && !isRecording && !isTranscribing && (
-              <Text style={styles.langNote}>Detected: {langLabel(detectedLang)}</Text>
-            )}
-          </View>
-
-          <View style={styles.transcriptBox}>
-            <Text style={styles.fieldLabel}>Transcript (you can edit this)</Text>
-            <TextInput
-              style={styles.transcriptInput}
-              multiline
-              value={transcript}
-              onChangeText={setTranscript}
-              placeholder="Your spoken description will appear here, or type it yourself…"
-              placeholderTextColor={colors.textTertiary}
-            />
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        <View style={styles.transcriptBox}>
+          <Text style={styles.fieldLabel}>Transcript (you can edit this)</Text>
+          <TextInput
+            style={styles.transcriptInput}
+            multiline
+            value={transcript}
+            onChangeText={setTranscript}
+            placeholder="Your spoken description will appear here, or type it yourself…"
+            placeholderTextColor={colors.textTertiary}
+          />
+        </View>
+      </KeyboardAwareScrollView>
 
       <View style={styles.footer}>
         <Button

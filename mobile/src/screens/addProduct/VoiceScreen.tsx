@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, TextInput, ActivityIndicator
+  View, Text, StyleSheet, TouchableOpacity, Animated, TextInput, ActivityIndicator
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AddProductStackParamList } from '../../navigation/types';
@@ -116,7 +117,13 @@ export const VoiceScreen: React.FC<Props> = ({ navigation }) => {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        enableOnAndroid={true}
+        extraScrollHeight={20}
+      >
         <Text style={styles.title}>Tell us about your product</Text>
         <Text style={styles.subtitle}>Speak naturally in your language. You don't need to type.</Text>
 
@@ -196,7 +203,7 @@ export const VoiceScreen: React.FC<Props> = ({ navigation }) => {
             ))}
           </>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <View style={styles.footer}>
         <Button 

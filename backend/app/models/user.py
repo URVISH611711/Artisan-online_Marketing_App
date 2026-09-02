@@ -62,6 +62,10 @@ class ArtisanProfile(Base, TimestampMixin):
     user: Mapped["User"] = relationship("User", back_populates="artisan_profile")
     products: Mapped[List["Product"]] = relationship("Product", back_populates="artisan", cascade="all, delete-orphan")
 
+    @property
+    def name(self) -> Optional[str]:
+        return self.user.name if self.user else None
+
 
 class BuyerProfile(Base, TimestampMixin):
     __tablename__ = "buyer_profiles"

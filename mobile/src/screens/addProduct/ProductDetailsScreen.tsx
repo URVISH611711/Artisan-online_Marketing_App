@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Text, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { View, StyleSheet, Text, Platform, Image } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -71,11 +72,14 @@ export const ProductDetailsScreen: React.FC<Props> = ({ navigation, route }) => 
     <SafeAreaView style={styles.container}>
       <Header title="Product Details" onBack={() => navigation.goBack()} />
 
-      <KeyboardAvoidingView 
-        style={styles.keyboardAvoid} 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      <KeyboardAwareScrollView
+        style={styles.keyboardAvoid}
+        contentContainerStyle={{ paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        enableOnAndroid={true}
+        extraScrollHeight={20}
       >
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {imageUris.length > 0 && (
             <View style={styles.imagePreviewContainer}>
               <Image source={{ uri: imageUris[0] }} style={styles.imagePreview} />
@@ -154,8 +158,7 @@ export const ProductDetailsScreen: React.FC<Props> = ({ navigation, route }) => 
           </View>
           
           <View style={styles.footerSpacing} />
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
 
       <View style={styles.footer}>
         <Button

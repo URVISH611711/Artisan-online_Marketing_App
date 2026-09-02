@@ -55,7 +55,7 @@ def get_current_user(
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
         )
     if not user.is_active:
@@ -114,7 +114,7 @@ def ensure_artisan_profile(db: Session, user: User) -> "ArtisanProfile":
 
     profile = ArtisanProfile(
         user_id=user.id,
-        business_name=user.name,
+        business_name="",
         craft_type="",
         location=user.address or "",
         state="",
