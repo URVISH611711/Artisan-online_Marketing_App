@@ -74,8 +74,9 @@ export type OrdersStackParamList = {
 
 // Sales stack
 export type SalesStackParamList = {
-  SalesMain: undefined;
+  SalesMain: { period?: 'week' | 'month' | 'year' } | undefined;
   Insights: undefined;
+  SalesBetweenDates: undefined;
 };
 
 // Profile stack

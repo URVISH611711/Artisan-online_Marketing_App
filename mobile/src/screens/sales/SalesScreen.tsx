@@ -1,6 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RouteProp } from '@react-navigation/native';
 import { SalesStackParamList } from '../../navigation/types';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { Card } from '../../components/ui/Card';
@@ -9,8 +10,12 @@ import { layout } from '../../theme/spacing';
 import { fetchDashboard, DashboardData } from '../../services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { SalesSidebarDrawer } from '../../components/sales/SalesSidebarDrawer';
 
-type Props = { navigation: NativeStackNavigationProp<SalesStackParamList, 'SalesMain'> };
+type Props = {
+  navigation: NativeStackNavigationProp<SalesStackParamList, 'SalesMain'>;
+  route: RouteProp<SalesStackParamList, 'SalesMain'>;
+};
 
 // Simple line chart substitute (uses View-based bars)
 const MiniChart: React.FC<{ data: { week: string; amount: number }[] }> = ({ data }) => {
@@ -36,10 +41,17 @@ const chartStyles = StyleSheet.create({
   label: { fontSize: 10, color: colors.textTertiary },
 });
 
-export const SalesScreen: React.FC<Props> = ({ navigation }) => {
+export const SalesScreen: React.FC<Props> = ({ navigation, route }) => {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'year'>('month');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    if (route.params?.period) {
+      setSelectedPeriod(route.params.period);
+    }
+  }, [route.params?.period]);
 
   const loadData = useCallback((period: 'week' | 'month' | 'year') => {
     setLoading(true);
@@ -89,7 +101,7 @@ export const SalesScreen: React.FC<Props> = ({ navigation }) => {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => setSidebarOpen(true)} activeOpacity={0.7}>
             <Ionicons name="menu-outline" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Sales</Text>
@@ -148,6 +160,17 @@ export const SalesScreen: React.FC<Props> = ({ navigation }) => {
               </Card>
             </View>
 
+            {/* Sales Between Two Dates */}
+            <Card padding="md" style={styles.betweenDatesCard}>
+              <TouchableOpacity
+                style={styles.betweenDatesBtn}
+                onPress={() => navigation.navigate('SalesBetweenDates')}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.betweenDatesText}>Sales Between Two Dates</Text>
+              </TouchableOpacity>
+            </Card>
+
             {/* No data message */}
             {totalSales === 0 && (
               <Card padding="md" style={{ marginBottom: 16 }}>
@@ -166,6 +189,15 @@ export const SalesScreen: React.FC<Props> = ({ navigation }) => {
           <Ionicons name="chevron-forward" size={18} color={colors.primary} />
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Sidebar Drawer */}
+      <SalesSidebarDrawer
+        visible={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        selectedPeriod={selectedPeriod}
+        onSelectPeriod={(period) => setSelectedPeriod(period)}
+        onPressDuration={() => navigation.navigate('SalesBetweenDates')}
+      />
     </ScreenWrapper>
   );
 };
@@ -187,6 +219,9 @@ const styles = StyleSheet.create({
   statCard: { flex: 1 },
   statLabel: { fontSize: 13, color: colors.textSecondary, marginBottom: 8 },
   statValue: { fontSize: 24, fontWeight: '800', color: colors.textPrimary },
+  betweenDatesCard: { marginBottom: 12 },
+  betweenDatesBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#EBF5FF', borderRadius: 20, paddingVertical: 10, paddingHorizontal: 16, borderWidth: 1, borderColor: '#B9E0FF' },
+  betweenDatesText: { fontSize: 14, fontWeight: '600', color: colors.primary },
   insightsLink: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.surface, borderRadius: 12, padding: 16, marginTop: 8, marginBottom: 20 },
   insightsText: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.primary },
 });

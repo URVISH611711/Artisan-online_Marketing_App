@@ -31,6 +31,7 @@ import { CounterOfferScreen } from '../screens/orders/CounterOfferScreen';
 
 import { SalesScreen } from '../screens/sales/SalesScreen';
 import { InsightsScreen } from '../screens/sales/InsightsScreen';
+import { SalesBetweenDatesScreen } from '../screens/sales/SalesBetweenDatesScreen';
 
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
 import { EditProfileScreen } from '../screens/profile/EditProfileScreen';
@@ -80,6 +81,7 @@ const SalesStackScreen = () => (
   <SalesStack.Navigator screenOptions={{ headerShown: false }}>
     <SalesStack.Screen name="SalesMain" component={SalesScreen} />
     <SalesStack.Screen name="Insights" component={InsightsScreen} />
+    <SalesStack.Screen name="SalesBetweenDates" component={SalesBetweenDatesScreen} />
   </SalesStack.Navigator>
 );
 
