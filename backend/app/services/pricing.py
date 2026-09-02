@@ -1,10 +1,10 @@
 """
-Smart Pricing Service — Gemini 2.0 Flash (Google AI)
+Smart Pricing Service — NVIDIA 2.0 Flash (Google AI)
 Acts as the artisan's personal pricing assistant.
 
 Receives: product name, current price, product image (base64 or URL).
 Returns:  three pricing choices (Competitive, Recommended, Premium)
-          with short reasons. Gemini independently approximates all
+          with short reasons. NVIDIA independently approximates all
           other pricing factors from the image and product context.
 """
 import base64
@@ -19,9 +19,8 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# ─── Gemini REST endpoint ─────────────────────────────────────────────────────
-# We use raw HTTP (no SDK dependency) so the existing requests library suffices.
-GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+# ─── NVIDIA NIM REST endpoint ───────────────────────────────────────────────────
+NVIDIA_BASE = "https://integrate.api.nvidia.com/v1/chat/completions"
 
 # ─── System / developer instruction ──────────────────────────────────────────
 
@@ -141,35 +140,24 @@ Never return conversational text outside the JSON."""
 
 def _build_image_part(image_source: str) -> dict:
     """
-    Build the Gemini inlineData or fileData part for an image.
-
-    Gemini image part formats:
-      - base64 string  → inlineData { mimeType, data }
-      - data: URI      → inlineData (strip the prefix)
-      - http(s) URL    → download and inline (Gemini can't reach private URLs)
+    Build the OpenAI-compatible image_url part for an image.
     """
     if image_source.startswith("data:image"):
-        # data:image/jpeg;base64,<data>
-        header, b64data = image_source.split(",", 1)
-        mime = header.split(";")[0].replace("data:", "")
-        return {"inlineData": {"mimeType": mime, "data": b64data}}
+        return {"type": "image_url", "image_url": {"url": image_source}}
 
     if image_source.startswith("http://") or image_source.startswith("https://"):
-        # Download and inline — handles both Supabase public URLs and
-        # external URLs safely without depending on Gemini File API.
         try:
             resp = requests.get(image_source, timeout=20)
             resp.raise_for_status()
             ct = resp.headers.get("content-type", "image/jpeg").split(";")[0]
             b64 = base64.b64encode(resp.content).decode("utf-8")
-            return {"inlineData": {"mimeType": ct, "data": b64}}
+            return {"type": "image_url", "image_url": {"url": f"data:{ct};base64,{b64}"}}
         except Exception as e:
-            logger.warning(f"[Gemini] Could not download image from URL: {e}")
-            # Fall through — pass empty (will get a text-only response)
+            logger.warning(f"[NVIDIA] Could not download image from URL: {e}")
             return {}
 
-    # Plain base64 (no prefix) — from local disk reads in smart_pricing.py
-    return {"inlineData": {"mimeType": "image/jpeg", "data": image_source}}
+    # Plain base64 (no prefix)
+    return {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_source}"}}
 
 
 # ─── Validation ───────────────────────────────────────────────────────────────
@@ -227,20 +215,25 @@ def get_smart_prices(
     current_price: float,
 ) -> Dict[str, Any]:
     """
-    Ask Gemini to return three pricing tiers for the given product.
+    Ask NVIDIA to return three pricing tiers for the given product.
 
     Returns:
       { "success": True,  "result": { ... } }   on success
       { "success": False, "error": "..." }        on failure
     """
-    api_key = getattr(settings, "GEMINI_API_KEY", "") or ""
-    model   = getattr(settings, "GEMINI_MODEL", "gemini-2.0-flash") or "gemini-2.0-flash"
+    api_key = getattr(settings, "NVIDIA_API_KEY", "") or ""
+    model = "meta/llama-3.2-11b-vision-instruct"
 
     if not api_key:
-        logger.error("[Gemini] GEMINI_API_KEY is not configured")
+        logger.error("[NVIDIA] NVIDIA_API_KEY is not configured")
         return {"success": False, "error": "Smart Pricing is temporarily unavailable."}
 
-    url = f"{GEMINI_BASE}/{model}:generateContent?key={api_key}"
+    url = NVIDIA_BASE
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
 
     user_text = (
         f"Product name: {product_name}\n"
@@ -254,43 +247,37 @@ def get_smart_prices(
 
     def _build_payload(extra_instruction: str = "") -> dict:
         text = (extra_instruction + "\n\n" + user_text).strip() if extra_instruction else user_text
-        parts: list = [{"text": text}]
+        content_parts: list = [{"type": "text", "text": text}]
         if image_part:
-            parts.append(image_part)
+            content_parts.append(image_part)
         return {
-            "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-            "contents": [{"role": "user", "parts": parts}],
-            "generationConfig": {
-                "temperature": 0.2,
-                "maxOutputTokens": 4000,
-                # NOTE: responseMimeType is NOT set — the model returns JSON in
-                # markdown fences which our _attempt() regex strips reliably.
-            },
+            "model": model,
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": content_parts}
+            ],
+            "temperature": 0.2,
+            "max_tokens": 1024,
         }
 
     def _attempt(extra: str = "") -> Optional[Dict[str, Any]]:
-        """Single Gemini call. Returns parsed dict or None."""
+        """Single NVIDIA call. Returns parsed dict or None."""
         payload = _build_payload(extra)
         try:
-            logger.info(f"[Gemini] Calling {model}...")
-            resp = requests.post(url, json=payload, timeout=60)
+            logger.info(f"[NVIDIA] Calling {model}...")
+            resp = requests.post(url, headers=headers, json=payload, timeout=60)
             resp.raise_for_status()
             data = resp.json()
 
             # Extract text from response
-            candidates = data.get("candidates", [])
-            if not candidates:
-                logger.warning("[Gemini] Empty candidates in response")
+            choices = data.get("choices", [])
+            if not choices:
+                logger.warning("[NVIDIA] Empty choices in response")
                 return None
 
-            parts = candidates[0].get("content", {}).get("parts", [])
-            if not parts:
-                logger.warning("[Gemini] No parts in candidate")
-                return None
-
-            content = parts[0].get("text", "").strip()
+            content = choices[0].get("message", {}).get("content", "").strip()
             if not content:
-                logger.warning("[Gemini] Empty text part")
+                logger.warning("[NVIDIA] Empty content")
                 return None
 
             # Strip markdown fences if present (defensive)
@@ -304,13 +291,13 @@ def get_smart_prices(
             return json.loads(clean)
 
         except requests.exceptions.Timeout:
-            logger.warning("[Gemini] Request timed out")
+            logger.warning("[NVIDIA] Request timed out")
             return None
         except json.JSONDecodeError as e:
-            logger.warning(f"[Gemini] JSON decode error: {e}")
+            logger.warning(f"[NVIDIA] JSON decode error: {e}")
             return None
         except Exception as e:
-            logger.warning(f"[Gemini] Request failed: {e}")
+            logger.warning(f"[NVIDIA] Request failed: {e}")
             return None
 
     # ── First attempt ─────────────────────────────────────────────────────────
@@ -319,7 +306,7 @@ def get_smart_prices(
     if parsed is not None:
         err = _validate_prices(parsed, current_price)
         if err:
-            logger.warning(f"[Gemini] Validation failed: {err} — retrying once...")
+            logger.warning(f"[NVIDIA] Validation failed: {err} — retrying once...")
             correction = (
                 "IMPORTANT: Your previous response was invalid. "
                 "Return ONLY valid JSON with no markdown, no code fences. "
@@ -331,7 +318,7 @@ def get_smart_prices(
             if parsed is not None:
                 err = _validate_prices(parsed, current_price)
                 if err:
-                    logger.error(f"[Gemini] Retry also failed validation: {err}")
+                    logger.error(f"[NVIDIA] Retry also failed validation: {err}")
                     parsed = None
 
     if parsed is None:
@@ -347,7 +334,7 @@ def get_smart_prices(
             raw = parsed["prices"][tier].get("price", 0)
             parsed["prices"][tier]["price"] = round(raw)
 
-    logger.info("[Gemini] Smart pricing success")
+    logger.info("[NVIDIA] Smart pricing success")
     return {"success": True, "result": parsed}
 
 
