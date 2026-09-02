@@ -111,9 +111,14 @@ export const OrdersScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <ScreenWrapper scrollable={false} padded={false}>
       <View style={styles.header}>
-        <View style={styles.avatarCircle}>
+        <TouchableOpacity
+          style={styles.avatarCircle}
+          onPress={() => (navigation.getParent() as any)?.navigate('Profile')}
+          activeOpacity={0.7}
+          accessibilityLabel="Go to Profile"
+        >
           <Ionicons name="person" size={18} color={colors.textSecondary} />
-        </View>
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Orders</Text>
         <TouchableOpacity style={styles.bellBtn} accessibilityLabel={`${unread} notifications`}>
           <Ionicons name="notifications-outline" size={24} color={colors.textPrimary} />

@@ -44,17 +44,18 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
       setDashboard(dashData);
       setUnreadCount(notifs.filter((n) => !n.read).length);
 
-      const acceptedStatuses = ['accepted', 'processing', 'shipped', 'delivered', 'completed'];
+      const shippedStatuses = ['shipped', 'delivered', 'completed'];
       const now = new Date();
       const calculatedTodaySales = (sellerOrders || [])
         .filter((o) => {
-          if (!o.created_at) return false;
-          const d = new Date(o.created_at);
+          const dateStr = o.updated_at || o.created_at;
+          if (!dateStr) return false;
+          const d = new Date(dateStr);
           const isSameDay =
             d.getDate() === now.getDate() &&
             d.getMonth() === now.getMonth() &&
             d.getFullYear() === now.getFullYear();
-          return isSameDay && acceptedStatuses.includes(o.status.toLowerCase());
+          return isSameDay && shippedStatuses.includes(o.status.toLowerCase());
         })
         .reduce((sum, o) => sum + (o.total_amount || 0), 0);
 
@@ -171,10 +172,9 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
         <View style={[styles.quickRow, { gap: cardGap }]}>
           <TouchableOpacity
             style={[styles.quickCard, shadows.card]}
-            onPress={() => (navigation.getParent() as any)?.navigate('Products')}
             activeOpacity={0.85}
             accessibilityLabel="My Products"
-            onPress={() => navigation.getParent()?.navigate('Products', { screen: 'ProductsList' })}
+            onPress={() => (navigation.getParent() as any)?.navigate('Products', { screen: 'ProductsList' })}
           >
             <Ionicons name="grid-outline" size={rs(26)} color={colors.primary} />
             <Text style={styles.quickTitle}>My Products</Text>

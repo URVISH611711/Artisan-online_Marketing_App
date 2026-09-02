@@ -142,9 +142,7 @@ def get_dashboard(
         start_date = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
         divisor = 4.0
 
-    accepted_statuses = [
-        OrderStatus.ACCEPTED,
-        OrderStatus.PROCESSING,
+    shipped_statuses = [
         OrderStatus.SHIPPED,
         OrderStatus.DELIVERED,
         OrderStatus.COMPLETED,
@@ -158,8 +156,10 @@ def get_dashboard(
             (Order.artisan_id == current_user.id) |
             (Order.items.any(OrderItem.seller_id == current_user.id))
         )
-        .filter(Order.status.in_(accepted_statuses))
-        .filter(Order.created_at >= start_date)
+        .filter(Order.status.in_(shipped_statuses))
+        .filter(
+            (Order.updated_at >= start_date) | (Order.created_at >= start_date)
+        )
         .all()
     )
 
