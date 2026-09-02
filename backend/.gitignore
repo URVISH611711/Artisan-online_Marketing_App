@@ -4,6 +4,7 @@ __pycache__/
 .env
 .env.*
 !.env.example
+smart_pricing_debug.txt
 
 # Local AI model weights (multi-GB, downloaded on first run)
 models/
