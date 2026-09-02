@@ -147,23 +147,7 @@ export const Header: React.FC<HeaderProps> = ({
             <Ionicons name={rightIcon} size={rs(22)} color={colors.textPrimary} />
           </TouchableOpacity>
         )}
-        {onCartPress && (<TouchableOpacity onPress={onCartPress} style={styles.iconButton} accessibilityLabel={`Cart, ${cartCount} items`} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Ionicons name="cart-outline" size={rs(22)} color={colors.textPrimary} />{cartCount > 0 && (<CountBadge count={cartCount} style={styles.notifBadge} />)}</TouchableOpacity>)}{onNotifications && (
-          <TouchableOpacity
-            onPress={onNotifications}
-            style={styles.iconButton}
-            accessibilityLabel={`Notifications, ${notificationCount} unread`}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons
-              name="notifications-outline"
-              size={rs(22)}
-              color={colors.textPrimary}
-            />
-            {notificationCount > 0 && (
-              <CountBadge count={notificationCount} style={styles.notifBadge} />
-            )}
-          </TouchableOpacity>
-        )}
+        {onCartPress && (<TouchableOpacity onPress={onCartPress} style={styles.iconButton} accessibilityLabel={`Cart, ${cartCount} items`} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Ionicons name="cart-outline" size={rs(22)} color={colors.textPrimary} />{cartCount > 0 && (<CountBadge count={cartCount} style={styles.notifBadge} />)}</TouchableOpacity>)}
       </View>
     </View>
   );

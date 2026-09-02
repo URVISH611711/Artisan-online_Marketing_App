@@ -356,6 +356,21 @@ export async function fetchNotifications(): Promise<NotificationData[]> {
   return apiFetch<NotificationData[]>('/notifications/');
 }
 
+export async function markNotificationAsRead(id: string): Promise<void> {
+  return apiFetch<void>(`/notifications/${id}/read`, { method: 'PUT' });
+}
+
+export async function markAllNotificationsAsRead(): Promise<void> {
+  return apiFetch<void>('/notifications/read-all', { method: 'PUT' });
+}
+
+export async function registerPushToken(token: string, deviceName?: string): Promise<void> {
+  return apiFetch<void>('/notifications/push-token', {
+    method: 'POST',
+    body: { token, device_name: deviceName },
+  });
+}
+
 // ─── AI Image Enhancement ─────────────────────────────────────────
 
 export interface EnhanceOptions {

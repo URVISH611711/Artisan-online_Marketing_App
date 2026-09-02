@@ -78,6 +78,7 @@ class SpeechTranscript(Base, UUIDMixin, TimestampMixin):
     recording: Mapped["VoiceRecording"] = relationship("VoiceRecording", back_populates="transcript")
 
 class NotificationType(str, enum.Enum):
+    # Old ones to keep compatibility
     NEW_ORDER = "new_order"
     BULK_ORDER = "bulk_order"
     COUNTER_OFFER = "counter_offer"
@@ -85,6 +86,20 @@ class NotificationType(str, enum.Enum):
     LOW_STOCK = "low_stock"
     AI_INSIGHT = "ai_insight"
     SYSTEM = "system"
+    
+    # New ones based on requirements
+    ORDER_PLACED = "order_placed"
+    PAYMENT_CONFIRMED = "payment_confirmed"
+    ORDER_ACCEPTED = "order_accepted"
+    ORDER_SHIPPED = "order_shipped"
+    ORDER_DELIVERED = "order_delivered"
+    ORDER_CANCELLED = "order_cancelled"
+    ORDER_REFUND = "order_refund"
+    PAYMENT_RECEIVED = "payment_received"
+    OUT_OF_STOCK = "out_of_stock"
+    PRODUCT_PUBLISHED = "product_published"
+    PROFILE_UPDATED = "profile_updated"
+    SECURITY_ALERT = "security_alert"
 
 class Notification(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "notifications"

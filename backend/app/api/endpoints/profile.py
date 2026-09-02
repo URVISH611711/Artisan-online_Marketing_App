@@ -11,6 +11,8 @@ from app.models.user import User, ArtisanProfile
 from app.models.product import Product
 from app.models.order import Order, OrderStatus, OrderItem
 from app.schemas.product import DashboardResponse
+from app.services.notifications import send_notification
+from app.models.ai import NotificationType
 
 router = APIRouter()
 
@@ -45,8 +47,34 @@ class ProfileUpdate(BaseModel):
     bio: Optional[str] = None
 
 
-def build_profile_response(user: User, artisan: Optional[ArtisanProfile] = None) -> ProfileResponse:
+def build_profile_response(user: User, artisan: Optional[ArtisanProfile] = None, db: Optional[Session] = None) -> ProfileResponse:
     role_val = user.role.value if hasattr(user.role, 'value') else str(user.role)
+    
+    products_count = 0
+    orders_count = 0
+    
+    if db and user.role.value == "seller":
+        # Calculate valid products count
+        products_count = db.query(Product).filter(Product.artisan_id == user.id, Product.deleted_at.is_(None)).count()
+        
+        # Calculate distinct valid orders count (excluding CANCELLED and REJECTED)
+        valid_statuses = [
+            OrderStatus.PENDING,
+            OrderStatus.ACCEPTED,
+            OrderStatus.PROCESSING,
+            OrderStatus.SHIPPED,
+            OrderStatus.DELIVERED,
+            OrderStatus.COMPLETED,
+        ]
+        orders_count = (
+            db.query(func.count(func.distinct(Order.id)))
+            .join(OrderItem)
+            .filter(OrderItem.seller_id == user.id)
+            .filter(Order.status.in_(valid_statuses))
+            .filter(Order.deleted_at.is_(None))
+            .scalar()
+        ) or 0
+        
     return ProfileResponse(
         id=str(user.id),
         name=user.name,
@@ -60,6 +88,9 @@ def build_profile_response(user: User, artisan: Optional[ArtisanProfile] = None)
         location=artisan.location if artisan else None,
         state=artisan.state if artisan else None,
         bio=artisan.bio if artisan else None,
+        products_count=products_count,
+        orders_count=orders_count,
+        rating=artisan.rating if artisan and hasattr(artisan, 'rating') else 0.0,
     )
 
 
@@ -72,7 +103,7 @@ def get_profile(
     artisan = db.query(ArtisanProfile).filter(
         ArtisanProfile.user_id == current_user.id
     ).first()
-    return build_profile_response(current_user, artisan)
+    return build_profile_response(current_user, artisan, db)
 
 
 @router.put("/", response_model=ProfileResponse)
@@ -107,7 +138,14 @@ def update_profile(
     db.commit()
     db.refresh(db_user)
 
-    return get_profile(current_user=db_user, db=db)
+    send_notification(
+        db, db_user.id, NotificationType.SYSTEM,
+        "Profile Updated",
+        "Your profile has been updated successfully.",
+        "user", str(db_user.id)
+    )
+
+    return build_profile_response(db_user, artisan, db)
 
 
 @router.get("/dashboard", response_model=DashboardResponse)

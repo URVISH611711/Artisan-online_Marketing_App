@@ -19,6 +19,8 @@ from app.schemas.order import (
     CartCheckout,
 )
 from app.services.inventory import reconcile_availability
+from app.services.notifications import send_notification
+from app.models.ai import NotificationType
 
 router = APIRouter()
 
@@ -221,6 +223,18 @@ def update_order_status(
         )
 
     if order.status != new_status:
+        # Restore inventory if the order is cancelled or rejected
+        if new_status in (OrderStatus.CANCELLED, OrderStatus.REJECTED):
+            for item in order.items:
+                if item.product_id:
+                    inv = db.query(Inventory).filter(Inventory.product_id == item.product_id).with_for_update().first()
+                    if inv:
+                        inv.available_quantity += item.quantity
+                        inv.sold_quantity = max(0, inv.sold_quantity - item.quantity)
+                        product = db.query(Product).filter(Product.id == item.product_id).first()
+                        if product:
+                            reconcile_availability(product, inv.available_quantity)
+
         order.status = new_status
         db.add(OrderTimeline(
             order_id=order.id,
@@ -228,6 +242,24 @@ def update_order_status(
             status_state="completed",
         ))
         db.commit()
+
+        # Map OrderStatus to NotificationType for the Buyer
+        notif_map = {
+            OrderStatus.ACCEPTED: (NotificationType.ORDER_ACCEPTED, "Order Accepted"),
+            OrderStatus.SHIPPED: (NotificationType.ORDER_SHIPPED, "Order Shipped"),
+            OrderStatus.DELIVERED: (NotificationType.ORDER_DELIVERED, "Order Delivered"),
+            OrderStatus.CANCELLED: (NotificationType.ORDER_CANCELLED, "Order Cancelled"),
+        }
+        
+        if new_status in notif_map:
+            n_type, n_title = notif_map[new_status]
+            send_notification(
+                db, order.buyer_id, n_type,
+                n_title,
+                f"Your order {order.order_number} is now {n_title.lower()}.",
+                "order", str(order.id)
+            )
+
         order = (
             db.query(Order).options(*_ORDER_LOADERS).filter(Order.id == order.id).first()
         )
@@ -267,6 +299,9 @@ def checkout_cart(
         if product.status != ProductStatus.PUBLISHED:
             raise HTTPException(status_code=400, detail=f"'{product.name}' is not available for purchase")
 
+        inventory = db.query(Inventory).filter(Inventory.product_id == cart_item.product_id).first()
+        old_qty = inventory.available_quantity if inventory else 0
+
         # Atomic lock-free UPDATE for inventory decrement to prevent race conditions.
         # This is more scalable than row locking and strictly enforces stock limits.
         update_stmt = (
@@ -277,25 +312,39 @@ def checkout_cart(
         
         if update_stmt == 0:
             # If 0 rows were updated, it means either the product doesn't exist or available_quantity < cart_item.quantity
-            inventory = db.query(Inventory).filter(Inventory.product_id == cart_item.product_id).first()
-            available = inventory.available_quantity if inventory else 0
+            inventory_refetch = db.query(Inventory).filter(Inventory.product_id == cart_item.product_id).first()
+            available = inventory_refetch.available_quantity if inventory_refetch else 0
             raise HTTPException(
                 status_code=400,
                 detail=f"Only {available} left of '{product.name}'",
             )
         
         # Fetch the updated inventory to reconcile product availability status
-        inventory = db.query(Inventory).filter(Inventory.product_id == cart_item.product_id).first()
+        inventory_updated = db.query(Inventory).filter(Inventory.product_id == cart_item.product_id).first()
+        new_qty = inventory_updated.available_quantity if inventory_updated else 0
 
         # Price is read from the DB product, never trusted from the request.
         subtotal = float(product.price) * cart_item.quantity
         total_amount += subtotal
-
-
-        product.orders = (product.orders or 0) + 1
         # Auto de-list when the last unit sells; the product stays visible in
         # the marketplace as OUT_OF_STOCK, just not purchasable.
-        reconcile_availability(product, inventory.available_quantity)
+        reconcile_availability(product, new_qty)
+
+        # Trigger Stock Notifications
+        if old_qty >= 10 and new_qty < 10 and new_qty > 0:
+            send_notification(
+                db, product.artisan_id, NotificationType.LOW_STOCK,
+                "Low Stock Alert",
+                f"Your product '{product.name}' is running low on stock ({new_qty} left).",
+                "product", str(product.id)
+            )
+        elif old_qty > 0 and new_qty <= 0:
+            send_notification(
+                db, product.artisan_id, NotificationType.OUT_OF_STOCK,
+                "Product Out of Stock",
+                f"Your product '{product.name}' is now out of stock.",
+                "product", str(product.id)
+            )
 
         validated_items.append({
             "product": product,
@@ -335,6 +384,24 @@ def checkout_cart(
     db.add(OrderTimeline(order_id=order.id, status_label="Order Placed", status_state="completed"))
 
     db.commit()
+
+    # Send Buyer Notification
+    send_notification(
+        db, current_user.id, NotificationType.ORDER_PLACED,
+        "Order Placed",
+        f"Your order {order_number} has been placed successfully.",
+        "order", str(order.id)
+    )
+
+    # Send Seller Notifications (unique sellers only)
+    seller_ids = set([v["product"].artisan_id for v in validated_items])
+    for seller_id in seller_ids:
+        send_notification(
+            db, seller_id, NotificationType.NEW_ORDER,
+            "New Order Received",
+            f"You received a new order ({order_number}).",
+            "order", str(order.id)
+        )
 
     order = db.query(Order).options(*_ORDER_LOADERS).filter(Order.id == order.id).first()
     return _order_response(order, "buyer", current_user.id)

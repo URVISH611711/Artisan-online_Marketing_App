@@ -4,6 +4,7 @@ import { RootStackParamList } from './types';
 import { useAuthStore } from '../store/useAuthStore';
 import { AuthNavigator } from './AuthNavigator';
 import { MainTabNavigator } from './MainTabNavigator';
+import { registerForPushNotificationsAsync } from '../services/pushNotifications';
 import { BuyerHomeScreen } from '../screens/marketplace/BuyerHomeScreen';
 import { SearchResultsScreen } from '../screens/marketplace/SearchResultsScreen';
 import { BuyerProductScreen } from '../screens/marketplace/BuyerProductScreen';
@@ -18,6 +19,7 @@ export const RootNavigator: React.FC = () => {
   React.useEffect(() => {
     if (isAuthenticated) {
       fetchAndSetProfile();
+      registerForPushNotificationsAsync();
     }
   }, [isAuthenticated, fetchAndSetProfile]);
 

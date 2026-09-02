@@ -66,7 +66,6 @@ class Product(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     status: Mapped[ProductStatus] = mapped_column(Enum(ProductStatus), default=ProductStatus.DRAFT, index=True)
     
     views: Mapped[int] = mapped_column(Integer, default=0)
-    orders: Mapped[int] = mapped_column(Integer, default=0)
     rating: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     # Relationships

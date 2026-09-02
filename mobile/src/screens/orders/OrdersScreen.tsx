@@ -120,10 +120,7 @@ export const OrdersScreen: React.FC<Props> = ({ navigation }) => {
           <Ionicons name="person" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Orders</Text>
-        <TouchableOpacity style={styles.bellBtn} accessibilityLabel={`${unread} notifications`}>
-          <Ionicons name="notifications-outline" size={24} color={colors.textPrimary} />
-          {unread > 0 && <View style={styles.bellDot} />}
-        </TouchableOpacity>
+        <View style={{ width: 24, height: 24 }} />
       </View>
 
       {/* Buyer / seller view switch — same account, two perspectives */}

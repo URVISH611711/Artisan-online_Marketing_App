@@ -11,6 +11,8 @@ from app.models.user import User, ArtisanProfile
 from app.models.product import Product, ProductStatus, ProductImage, Inventory, Category
 from app.schemas.product import ProductResponse, ProductCreate, ProductUpdate
 from app.services.inventory import reconcile_availability
+from app.services.notifications import send_notification
+from app.models.ai import NotificationType
 from app.services.nvidia import auto_describe_product
 
 router = APIRouter()
@@ -207,6 +209,7 @@ def update_product(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
+    old_status = product.status
     update_data = payload.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         if key == "status" and value:
@@ -242,6 +245,15 @@ def update_product(
 
     db.commit()
     db.refresh(product)
+    
+    if old_status != ProductStatus.PUBLISHED and product.status == ProductStatus.PUBLISHED:
+        send_notification(
+            db, product.artisan_id, NotificationType.PRODUCT_PUBLISHED,
+            "Product Published",
+            f"Your product '{product.name}' is now live.",
+            "product", str(product.id)
+        )
+        
     return product
 
 

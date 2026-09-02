@@ -116,3 +116,21 @@ class Payment(Base, UUIDMixin, TimestampMixin):
     currency: Mapped[str] = mapped_column(String(10), default="INR")
     provider: Mapped[str] = mapped_column(String(50), default="mock")
     status: Mapped[str] = mapped_column(String(50), default="pending")
+
+# Dynamically attach 'orders' column_property to Product to avoid circular imports.
+# This calculates the count of distinct valid orders (excluding CANCELLED and REJECTED)
+from sqlalchemy import select, func
+from sqlalchemy.orm import column_property
+from app.models.product import Product
+
+Product.orders = column_property(
+    select(func.count(func.distinct(OrderItem.order_id)))
+    .join(Order, Order.id == OrderItem.order_id)
+    .where(
+        OrderItem.product_id == Product.id,
+        Order.status.notin_([OrderStatus.CANCELLED, OrderStatus.REJECTED]),
+        Order.deleted_at.is_(None)
+    )
+    .correlate_except(OrderItem)
+    .scalar_subquery()
+)
