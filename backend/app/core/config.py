@@ -22,11 +22,15 @@ class Settings(BaseSettings):
     SMTP_USERNAME: Optional[str] = None
     SMTP_PASSWORD: Optional[str] = None
 
-    # NVIDIA API
+    # NVIDIA API (legacy — kept for reference)
     NVIDIA_API_KEY: Optional[str] = None
 
     # Sarvam AI (cloud speech-to-text for Indic languages)
     SARVAM_API: Optional[str] = None
+
+    # Gemini API (Google AI Studio)
+    GEMINI_API_KEY: Optional[str] = None
+    GEMINI_MODEL: str = "gemini-3-flash-preview"
 
     # Local uploads fallback
     UPLOADS_DIR: str = "uploads"
@@ -50,8 +54,12 @@ class Settings(BaseSettings):
     SD_STEPS: int = 20
     SD_GUIDANCE: float = 7.5
 
-    # NVIDIA API key
+    # NVIDIA API key (legacy)
     NVIDIA_API_KEY: str = "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"
+
+    # Gemini API key (primary AI vision provider)
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-3-flash-preview"
 
     # Whether to run Real-ESRGAN upscaling after compositing (CPU, slow).
     ENABLE_UPSCALE: bool = False

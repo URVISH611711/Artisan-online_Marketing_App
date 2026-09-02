@@ -48,6 +48,8 @@ export type HomeStackParamList = {
   HomeMain: undefined;
   Notifications: undefined;
   AddProduct: NavigatorScreenParams<AddProductStackParamList>;
+  SmartPricePicker: undefined;
+  SmartPriceAnalysis: { productId: string };
 };
 
 // Products stack
@@ -59,6 +61,7 @@ export type ProductsStackParamList = {
   BuyerProduct: { productId: string };
   Cart: undefined;
   Checkout: undefined;
+  SmartPriceAnalysis: { productId: string };
 };
 
 // Orders stack
