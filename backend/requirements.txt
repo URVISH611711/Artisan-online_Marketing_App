@@ -10,6 +10,7 @@ google-generativeai>=0.8.0
 SQLAlchemy==2.0.28
 alembic==1.13.1
 psycopg2-binary==2.9.9
+requests>=2.31.0
 
 # ─── Config & validation ─────────────────────────────────────────
 pydantic==2.6.4

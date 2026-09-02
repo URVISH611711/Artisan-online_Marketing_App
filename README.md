@@ -2,7 +2,7 @@
 
 Artisan-AI is a full-stack platform empowering artisans with AI-driven product cataloging, pricing insights, and marketplace management. 
 
-Our **AI Product Studio** runs **100% locally** on your machine—no cloud APIs, no API keys, and no subscriptions required. We leverage optimized local open-source models (Stable Diffusion, RMBG-1.4, Qwen, and faster-whisper) that are aggressive on VRAM and maintain complete data privacy.
+Our **AI Product Studio** leverages a powerful **Hybrid Architecture** combining optimized local open-source models (Stable Diffusion, RMBG-1.4) for completely private, offline image generation and background removal, alongside specialized Cloud APIs (NVIDIA NIM, Sarvam AI) for lightning-fast product analysis and Indic language voice transcription.
 
 ---
 
@@ -110,10 +110,18 @@ npx expo start -c
 
 ---
 
-## 🧠 Note on the Local AI Studio
-The AI Product Studio uses the following local models:
+## 🧠 Hybrid AI Architecture (Local + Cloud)
+Artisan-AI employs a hybrid AI strategy to balance performance, cost, and device constraints:
+
+### 1. Local AI Models (Runs on your machine)
 - **briaai/RMBG-1.4**: For highly accurate background removal.
 - **runwayml/stable-diffusion-inpainting**: Local image generation for professional studio backgrounds, optimized for 4GB VRAM.
-- **faster-whisper (Tiny)**: Local voice-to-text transcription.
+- **faster-whisper (Tiny)**: Local offline fallback for voice-to-text transcription.
 
-**IMPORTANT:** The very first time you use the AI features (Image Enhancement or Voice Transcription), Python will automatically download these models from HuggingFace to your local cache (`~/.cache/huggingface`). This is a one-time download of roughly ~5 GB. All subsequent runs will be entirely instant and offline.
+*IMPORTANT: The very first time you use the local AI features, Python will automatically download these models from HuggingFace to your local cache (`~/.cache/huggingface`). This is a one-time download of roughly ~5 GB.*
+
+### 2. Cloud AI Services
+- **NVIDIA NIM API**: Uses optimized LLaMA 3.2 Vision (`meta/llama-3.2-11b-vision-instruct`) and Kimi-K3 (`moonshotai/kimi-k3`) for lightning-fast product analysis and auto-cataloging from images.
+- **Sarvam AI**: Specialized API for translating and transcribing Indian languages directly from artisan voice notes.
+
+*Ensure you have configured `NVIDIA_API_KEY` and `SARVAM_API` in your `.env` for the cloud services to function.*
