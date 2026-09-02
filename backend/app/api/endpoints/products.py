@@ -7,7 +7,7 @@ from typing import Optional, List
 from app.database.connection import get_db
 from app.api.deps import get_current_user, get_optional_user, ensure_artisan_profile
 from app.core.enums import coerce_enum
-from app.models.user import User
+from app.models.user import User, ArtisanProfile
 from app.models.product import Product, ProductStatus, ProductImage, Inventory, Category
 from app.schemas.product import ProductResponse, ProductCreate, ProductUpdate
 from app.services.inventory import reconcile_availability
@@ -52,7 +52,13 @@ def list_products(
     """List all products for the authenticated artisan."""
     query = (
         db.query(Product)
-        .options(joinedload(Product.images))
+        .options(
+            joinedload(Product.images),
+            joinedload(Product.inventory),
+            joinedload(Product.artisan).joinedload(ArtisanProfile.user),
+            selectinload(Product.translations),
+            selectinload(Product.keywords),
+        )
         .filter(Product.artisan_id == current_user.id)
         .filter(Product.deleted_at.is_(None))
     )
@@ -86,7 +92,7 @@ def list_marketplace_products(
         .options(
             joinedload(Product.images),
             joinedload(Product.inventory),
-            joinedload(Product.artisan).joinedload("user"),
+            joinedload(Product.artisan).joinedload(ArtisanProfile.user),
             selectinload(Product.translations),
             selectinload(Product.keywords),
         )
@@ -131,7 +137,7 @@ def get_product(
         .options(
             joinedload(Product.images),
             joinedload(Product.inventory),
-            joinedload(Product.artisan).joinedload("user"),
+            joinedload(Product.artisan).joinedload(ArtisanProfile.user),
             selectinload(Product.translations),
             selectinload(Product.keywords),
         )
