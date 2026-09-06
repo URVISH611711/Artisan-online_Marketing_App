@@ -33,8 +33,9 @@ export const ProductsScreen: React.FC<Props> = ({ navigation, route }) => {
   React.useEffect(() => {
     if (route.params?.mode) {
       setMode(route.params.mode);
+      navigation.setParams({ mode: undefined });
     }
-  }, [route.params?.mode]);
+  }, [route.params?.mode, navigation]);
 
   const [categories, setCategories] = useState<string[]>(['All']);
 
