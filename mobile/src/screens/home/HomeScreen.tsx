@@ -48,16 +48,30 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
       const now = new Date();
       const calculatedTodaySales = (sellerOrders || [])
         .filter((o) => {
-          const dateStr = o.updated_at || o.created_at;
-          if (!dateStr) return false;
-          const d = new Date(dateStr);
-          const isSameDay =
-            d.getDate() === now.getDate() &&
-            d.getMonth() === now.getMonth() &&
-            d.getFullYear() === now.getFullYear();
-          return isSameDay && shippedStatuses.includes(o.status.toLowerCase());
+          const status = (o.status || '').toLowerCase();
+          if (!shippedStatuses.includes(status)) return false;
+
+          const createdDate = o.created_at ? new Date(o.created_at) : null;
+          const updatedDate = o.updated_at ? new Date(o.updated_at) : null;
+
+          const isCreatedToday = !!createdDate &&
+            createdDate.getDate() === now.getDate() &&
+            createdDate.getMonth() === now.getMonth() &&
+            createdDate.getFullYear() === now.getFullYear();
+
+          const isUpdatedToday = !!updatedDate &&
+            updatedDate.getDate() === now.getDate() &&
+            updatedDate.getMonth() === now.getMonth() &&
+            updatedDate.getFullYear() === now.getFullYear();
+
+          return isCreatedToday || isUpdatedToday;
         })
-        .reduce((sum, o) => sum + (o.total_amount || 0), 0);
+        .reduce((sum, o) => {
+          const sellerItems = o.items ? o.items.filter((i: any) => !i.seller_id || (user?.id && i.seller_id === user.id)) : [];
+          const itemSum = sellerItems.reduce((s: number, i: any) => s + (i.subtotal || ((i.unit_price || 0) * (i.quantity || 1)) || 0), 0);
+          const orderAmount = itemSum > 0 ? itemSum : (o.total_amount || 0);
+          return sum + orderAmount;
+        }, 0);
 
       const backendSales = dashData?.total_sales || 0;
       setTodaySales(Math.max(backendSales, calculatedTodaySales));
