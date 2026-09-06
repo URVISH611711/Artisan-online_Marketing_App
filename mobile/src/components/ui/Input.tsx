@@ -45,6 +45,7 @@ export const Input: React.FC<InputProps> = ({
           styles.inputContainer,
           focused && styles.inputFocused,
           error && styles.inputError,
+          rest.multiline && styles.inputContainerMultiline,
         ]}
       >
         {!!icon && (
@@ -60,7 +61,7 @@ export const Input: React.FC<InputProps> = ({
           </View>
         )}
         <TextInput
-          style={[styles.input, style]}
+          style={[styles.input, rest.multiline && styles.inputMultiline, style]}
           placeholderTextColor={colors.textTertiary}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
@@ -106,6 +107,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     overflow: 'hidden',
   },
+  inputContainerMultiline: {
+    height: 'auto',
+    minHeight: layout.inputHeight,
+  },
   inputFocused: {
     borderColor: colors.borderFocused,
     borderWidth: 1.5,
@@ -119,6 +124,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.textPrimary,
     paddingHorizontal: 16,
+  },
+  inputMultiline: {
+    paddingVertical: 12,
+    textAlignVertical: 'center',
   },
   prefixContainer: {
     flexDirection: 'row',

@@ -87,7 +87,7 @@ export const EditProductScreen: React.FC<Props> = ({ navigation, route }) => {
         <Input label="Product Name" value={name} onChangeText={setName} />
         <Input label="Price (₹)" value={price} onChangeText={setPrice} keyboardType="numeric" />
         <Input label="Stock Quantity" value={quantity} onChangeText={setQuantity} keyboardType="numeric" />
-        <Input label="Description" value={description} onChangeText={setDescription} multiline numberOfLines={5} style={{ height: 120, textAlignVertical: 'top' }} />
+        <Input label="Description" value={description} onChangeText={setDescription} multiline numberOfLines={4} style={{ minHeight: 90, textAlignVertical: 'center' }} />
         <Button title={saving ? "Saving..." : "Save Changes"} onPress={handleSave} style={styles.button} disabled={saving} />
         <Button title="Delete Product" onPress={handleDelete} variant="danger" style={{ marginTop: 10 }} />
       </ScrollView>

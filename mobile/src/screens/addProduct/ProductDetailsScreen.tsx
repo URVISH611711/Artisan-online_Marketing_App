@@ -120,7 +120,7 @@ export const ProductDetailsScreen: React.FC<Props> = ({ navigation, route }) => 
               onChangeText={setDescription}
               multiline
               numberOfLines={3}
-              style={{ height: 80, textAlignVertical: 'top' }}
+              style={{ minHeight: 80, textAlignVertical: 'center' }}
             />
             
             <Input
